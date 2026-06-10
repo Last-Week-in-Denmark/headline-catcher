@@ -16,6 +16,15 @@ config_file = f"config.{current_env}.json"
 with open(config_file, "r") as f:
     config = json.load(f)
 
+import re # Add this to your imports at the top
+
+# Util to Clean HTML
+def clean_html(raw_html):
+    """Removes HTML tags from text for clean snippets."""
+    cleanr = re.compile('<.*?>')
+    cleantext = re.sub(cleanr, '', raw_html)
+    return cleantext.strip()
+
 # ==========================================
 # 1. TEAM PASSWORD PROTECTION LOGIC
 # ==========================================
@@ -127,32 +136,51 @@ if st.button("Fetch News", type="primary"):
     if not articles:
         st.error("Could not find any articles. Check the URL.")
     else:
-        for idx, art in enumerate(articles):
-            st.subheader(f"{idx+1}. {art['title']}")
-            st.caption(f"📅 {art['published']} | 🔗 [Original Article]({art['link']})")
+        # Loop through articles in chunks of 2 to create rows
+        for i in range(0, len(articles), 2):
+            cols = st.columns(2) # Create a 2-column grid for each row
             
-            # --- TIER 1: Default (Free) ---
-            if "1. Default" in processing_tier:
-                st.info(f"**Raw RSS Content:**\n\n{art['rss_summary']}")
-                
-            # --- TIER 2: Translate RSS (Flag A) ---
-            elif "2. Translate RSS" in processing_tier:
-                with st.spinner("Translating RSS snippet..."):
-                    translated_text = process_with_ai(art['rss_summary'], "translate_only", target_language)
-                    st.success(f"**Translated ({target_language}):**\n\n{translated_text}")
+            for j in range(2):
+                if i + j < len(articles):
+                    art = articles[i + j]
+                    idx = i + j
                     
-            # --- TIER 3: Deep Analyze (Flag B) ---
-            elif "3. Deep Analyze" in processing_tier:
-                with st.spinner("Extracting and analyzing full site content..."):
-                    raw_text = extract_article_text(art['link'])
-                    
-                    if len(raw_text) > 300:
-                        analysis = process_with_ai(raw_text, "deep_analyze", target_language)
-                        st.success(f"**AI Analysis ({target_language}):**\n\n{analysis}")
-                    else:
-                        # Fallback if scraping fails (paywall, etc.)
-                        st.warning("⚠️ Could not extract full text. Falling back to translating the RSS summary.")
-                        fallback_text = process_with_ai(art['rss_summary'], "translate_only", target_language)
-                        st.info(f"**Translated Summary:**\n\n{fallback_text}")
-            
-            st.divider()
+                    with cols[j]:
+                        # A container with a border acts like a "card"
+                        with st.container(border=True):
+                            st.subheader(f"{idx+1}. {art['title']}")
+                            st.caption(f"📅 {art['published']}")
+                            
+                            # Clean the HTML and grab the first 20 words for the snippet
+                            clean_summary = clean_html(art['rss_summary'])
+                            snippet_words = clean_summary.split()[:20]
+                            snippet = " ".join(snippet_words) + ("..." if len(snippet_words) >= 20 else "")
+                            
+                            st.write(f"*{snippet}*")
+                            
+                            # The "Click for more info" expander
+                            with st.expander("🔍 Expand for Details & Analysis"):
+                                st.markdown(f"🔗 [Read Original Article]({art['link']})")
+                                
+                                # --- TIER 1: Default (Free) ---
+                                if "1. Default" in processing_tier:
+                                    st.info(f"**Cleaned RSS Content:**\n\n{clean_summary}")
+                                    
+                                # --- TIER 2: Translate RSS ---
+                                elif "2. Translate RSS" in processing_tier:
+                                    with st.spinner("Translating..."):
+                                        translated_text = process_with_ai(clean_summary, "translate_only", target_language)
+                                        st.success(f"**Translated ({target_language}):**\n\n{translated_text}")
+                                        
+                                # --- TIER 3: Deep Analyze ---
+                                elif "3. Deep Analyze" in processing_tier:
+                                    with st.spinner("Analyzing full site..."):
+                                        raw_text = extract_article_text(art['link'])
+                                        
+                                        if len(raw_text) > 300:
+                                            analysis = process_with_ai(raw_text, "deep_analyze", target_language)
+                                            st.success(f"**AI Analysis ({target_language}):**\n\n{analysis}")
+                                        else:
+                                            st.warning("⚠️ Could not extract full text. Translating summary instead.")
+                                            fallback_text = process_with_ai(clean_summary, "translate_only", target_language)
+                                            st.info(f"**Translated Summary:**\n\n{fallback_text}")
