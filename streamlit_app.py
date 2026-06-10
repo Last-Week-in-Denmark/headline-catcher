@@ -2,23 +2,20 @@ import streamlit as st
 import feedparser
 from newspaper import Article
 from openai import OpenAI
-
 import os
 import json
+import re
 
-# Check where the app is running
-current_env = os.environ.get("ENV", "dev") # Defaults to 'dev' if not found
-# Set to Turkish
+# --- ENVIRONMENT & CONFIGURATION ---
+current_env = os.environ.get("ENV", "dev")
+# Explicit override for Turkish settings matching your snippet
 current_env = "tr"
 
-# Load the correct settings file
 config_file = f"config.{current_env}.json"
 with open(config_file, "r") as f:
     config = json.load(f)
 
-import re # Add this to your imports at the top
-
-# Util to Clean HTML
+# --- UTILS ---
 def clean_html(raw_html):
     """Removes HTML tags from text for clean snippets."""
     cleanr = re.compile('<.*?>')
@@ -46,7 +43,6 @@ def check_password():
         return False
     return True
 
-# Halt execution if the user is not logged in
 if not check_password():
     st.stop()
 
@@ -56,15 +52,16 @@ if not check_password():
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 @st.cache_data(show_spinner=False)
-def fetch_rss_links(feed_url):
+def fetch_rss_links(feed_url, source_name):
+    """Fetches RSS feed and appends the source name to each item."""
     feed = feedparser.parse(feed_url)
     articles = []
     for entry in feed.entries:
         articles.append({
             "title": entry.title,
             "link": entry.link,
+            "source": source_name,
             "published": entry.get("published", "No date provided"),
-            # Capture the raw RSS summary for Tier 1 and 2
             "rss_summary": entry.get("summary", "No standard RSS summary available.")
         })
     return articles
@@ -79,10 +76,9 @@ def extract_article_text(url):
         return ""
 
 def process_with_ai(text, task_type, target_lang):
-    """Handles both translation and summarization based on the selected tier."""
     if task_type == "translate_only":
         system_instruction = f"You are a professional translator. Translate the following text into {target_lang}. Do not summarize, just translate accurately."
-    else: # deep_analyze
+    else: 
         system_instruction = f"You are an expert news editor. Analyze the article text. Provide a highly engaging headline, followed by a 3-bullet point summary of the key facts. Write the entire response in {target_lang}."
 
     try:
@@ -92,7 +88,7 @@ def process_with_ai(text, task_type, target_lang):
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": text}
             ],
-            temperature=0.3 # Lower temperature for more accurate translation
+            temperature=0.3
         )
         return response.choices[0].message.content
     except Exception as e:
@@ -103,15 +99,19 @@ def process_with_ai(text, task_type, target_lang):
 # ==========================================
 st.title(config['LOCALIZATION_SUMMARY_SCREEN_TITLE'])
 
-# Sidebar for settings keeps the UI clean
+# Sidebar Configuration
 with st.sidebar:
     st.header("⚙️ Settings")
-    rss_url = st.text_input("RSS Feed URL:", "https://feeds.feedburner.com/TechCrunch/")
-    num_articles = st.slider("Articles to fetch:", 1, 10, 3)
+    
+    # Extract feed options from JSON configuration
+    feed_options = list(config.get("FEEDS", {}).keys())
+    feed_options.insert(0, "All Feeds") # Give teams option to aggregate everything
+    
+    selected_feed_name = st.selectbox("Select News Channel:", options=feed_options)
+    num_articles = st.slider("Articles to fetch per channel:", 1, 10, 3)
     
     st.divider()
     st.subheader("Processing Level (Cost Control)")
-    # The 3-way fallback logic
     processing_tier = st.radio(
         "Choose how to process the feed:",
         options=[
@@ -122,23 +122,30 @@ with st.sidebar:
         index=0
     )
     
-    # Only show language selector if an AI tier is chosen
     if "1. Default" not in processing_tier:
-        target_language = st.selectbox("Target Language:", ["Spanish", "French", "German", "Japanese", "English"])
+        target_language = st.selectbox("Target Language:", ["Turkish", "Danish", "English"])
     else:
         target_language = None
 
 # Main processing loop
 if st.button("Fetch News", type="primary"):
-    with st.spinner("Fetching RSS feed..."):
-        articles = fetch_rss_links(rss_url)[:num_articles]
+    articles = []
+    
+    with st.spinner("Fetching RSS feeds..."):
+        # Map selected dropdown choice to the execution path
+        if selected_feed_name == "All Feeds":
+            for name, url in config.get("FEEDS", {}).items():
+                articles.extend(fetch_rss_links(url, name)[:num_articles])
+        else:
+            url = config["FEEDS"][selected_feed_name]
+            articles = fetch_rss_links(url, selected_feed_name)[:num_articles]
         
     if not articles:
-        st.error("Could not find any articles. Check the URL.")
+        st.error("Could not find any articles. Check your config file or internet connection.")
     else:
         # Loop through articles in chunks of 2 to create rows
         for i in range(0, len(articles), 2):
-            cols = st.columns(2) # Create a 2-column grid for each row
+            cols = st.columns(2)
             
             for j in range(2):
                 if i + j < len(articles):
@@ -146,33 +153,29 @@ if st.button("Fetch News", type="primary"):
                     idx = i + j
                     
                     with cols[j]:
-                        # A container with a border acts like a "card"
                         with st.container(border=True):
+                            # Added source tag context so teams know where it comes from
+                            st.caption(f"📢 Source: **{art['source']}**")
                             st.subheader(f"{idx+1}. {art['title']}")
                             st.caption(f"📅 {art['published']}")
                             
-                            # Clean the HTML and grab the first 20 words for the snippet
                             clean_summary = clean_html(art['rss_summary'])
                             snippet_words = clean_summary.split()[:20]
                             snippet = " ".join(snippet_words) + ("..." if len(snippet_words) >= 20 else "")
                             
                             st.write(f"*{snippet}*")
                             
-                            # The "Click for more info" expander
                             with st.expander("🔍 Expand for Details & Analysis"):
                                 st.markdown(f"🔗 [Read Original Article]({art['link']})")
                                 
-                                # --- TIER 1: Default (Free) ---
                                 if "1. Default" in processing_tier:
                                     st.info(f"**Cleaned RSS Content:**\n\n{clean_summary}")
                                     
-                                # --- TIER 2: Translate RSS ---
                                 elif "2. Translate RSS" in processing_tier:
                                     with st.spinner("Translating..."):
                                         translated_text = process_with_ai(clean_summary, "translate_only", target_language)
                                         st.success(f"**Translated ({target_language}):**\n\n{translated_text}")
                                         
-                                # --- TIER 3: Deep Analyze ---
                                 elif "3. Deep Analyze" in processing_tier:
                                     with st.spinner("Analyzing full site..."):
                                         raw_text = extract_article_text(art['link'])
