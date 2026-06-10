@@ -18,5 +18,9 @@
       "name": "example",
       "url": "https://example.com/rss"
     }
-  ]
+  ],
+  "LOCALIZATION_PASSWORD_SCREEN": "🔒 Manşet Toplayıcıya Giriş (Danimarka'da Geçen Hafta)",
+  "LOCALIZATION_PASSWORD_SCREEN_PROMPT": "Özetleyiciye erişmek için takım şifresini girin.",
+  "LOCALIZATION_PASSWORD_SCREEN_INCORRECT_PASSWORD": "Yanlış şifre. Şifre sizde yoksa Slack ya da WhatsApp'tan sorun, ileteyim ;)",
+  "LOCALIZATION_SUMMARY_SCREEN_TITLE": "📰 Manşet Toplayıcı"
 }

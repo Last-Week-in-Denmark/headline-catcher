@@ -25,15 +25,15 @@ def check_password():
         st.session_state["password_correct"] = False
 
     if not st.session_state["password_correct"]:
-        st.title("🔒 Team News Digest Login")
-        st.write("Please enter the team password to access the summarizer.")
+        st.title(config['LOCALIZATION_PASSWORD_SCREEN'])
+        st.write(config['LOCALIZATION_PASSWORD_SCREEN_PROMPT'])
         pwd = st.text_input("Password:", type="password")
         
         if pwd == st.secrets["TEAM_PASSWORD"]:
             st.session_state["password_correct"] = True
             st.rerun()
         elif pwd:
-            st.error("Incorrect password. Please try again.")
+            st.error(config['LOCALIZATION_PASSWORD_SCREEN_INCORRECT_PASSWORD'])
         return False
     return True
 
@@ -92,7 +92,7 @@ def process_with_ai(text, task_type, target_lang):
 # ==========================================
 # 3. STREAMLIT USER INTERFACE
 # ==========================================
-st.title("📰 AI News Digest & Translator")
+st.title(config['LOCALIZATION_SUMMARY_SCREEN_TITLE'])
 
 # Sidebar for settings keeps the UI clean
 with st.sidebar:
