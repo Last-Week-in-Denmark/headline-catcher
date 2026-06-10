@@ -92,4 +92,4 @@ if st.button("Fetch and Summarize", type="primary"):
         articles = fetch_rss_links(rss_url)[:num_articles]
         
     if not articles:
-        st.error("Could not find any articles.
+        st.error("Could not find any articles.")
