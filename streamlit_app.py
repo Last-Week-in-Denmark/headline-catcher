@@ -127,6 +127,20 @@ with st.sidebar:
     else:
         target_language = None
 
+    st.divider()
+    st.subheader("Eklenecek Özellikler (Gelecekte):")
+    st.divider()
+    st.subheader("Word'e Aktarma")
+    st.divider()
+    st.subheader("Kategori İşaretleme")
+    st.divider()
+    st.subheader("İlave Feed Ekleme")
+    st.divider()
+    st.subheader("Dil / Lokalizasyon")
+    st.divider()
+    st.subheader("Sosyal Medyadan Okuma")
+    
+
 # Main processing loop
 if st.button("Fetch News", type="primary"):
     articles = []
