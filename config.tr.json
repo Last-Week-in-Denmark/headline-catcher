@@ -15,7 +15,21 @@
   },
   "FEEDS": {
     "gazeteDK": "https://gazetedk.online/rss",
-    "HaberDK": "https://haber.dk/rss"
+    "HaberDK": "https://haber.dk/rss",
+    "NordicTurk": "https://www.nordicturk.com/rss",
+    "CPH Post": "https://cphpost.dk/rss",
+    "The Local Denmark": "https://www.thelocal.dk/rss",
+    "Türkiye'deki Danimarka": "https://um.dk/tyrkiet",
+    "DR": "https://www.dr.dk/rss",
+    "TV2": "https://www.tv2.dk/rss",
+    "Berlingske": "https://www.berlingske.dk/rss",
+    "Altinget": "https://www.altinget.dk/rss",
+    "Heste-Nettet": "https://www.heste-nettet.dk/rss",
+    "Sermitsiaq": "https://www.sermitsiaq.ag/rss",
+    "Politiken": "https://politiken.dk/rss",
+    "Uniavisen": "https://uniavisen.dk/rss",
+    "Jyllands Posten": "https://jyllands-posten.dk/rss",
+    "København Liv": "https://kobenhavnliv.dk/rss"
   },
   "LOCALIZATION_PASSWORD_SCREEN": "🔒 Manşet Toplayıcıya Giriş (Danimarka'da Geçen Hafta)",
   "LOCALIZATION_PASSWORD_SCREEN_PROMPT": "Özetleyiciye erişmek için takım şifresini girin.",
