@@ -1,0 +1,22 @@
+{
+  "appName": "headline-catcher",
+  "version": "0.0.1",
+  "server": {
+    "host": "localhost",
+    "port": 3000
+  },
+  "database": {
+    "type": "sqlite",
+    "filename": "data/headlines.db"
+  },
+  "logging": {
+    "level": "info",
+    "file": "logs/app.log"
+  },
+  "sources": [
+    {
+      "name": "example",
+      "url": "https://example.com/rss"
+    }
+  ]
+}
