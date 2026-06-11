@@ -5,10 +5,11 @@ from openai import OpenAI
 import os
 import json
 import re
+import time
+from datetime import datetime, timedelta
 
 # --- ENVIRONMENT & CONFIGURATION ---
 current_env = os.environ.get("ENV", "dev")
-# Explicit override for Turkish settings matching your snippet
 current_env = "tr"
 
 config_file = f"config.{current_env}.json"
@@ -26,7 +27,6 @@ def clean_html(raw_html):
 # 1. TEAM PASSWORD PROTECTION LOGIC
 # ==========================================
 def check_password():
-    """Returns `True` if the user had the correct password."""
     if "password_correct" not in st.session_state:
         st.session_state["password_correct"] = False
 
@@ -51,12 +51,29 @@ if not check_password():
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-@st.cache_data(show_spinner=False)
-def fetch_rss_links(feed_url, source_name):
-    """Fetches RSS feed and appends the source name to each item."""
-    feed = feedparser.parse(feed_url)
+# Cache the network request for 30 minutes so we don't get blocked by news sites
+@st.cache_data(show_spinner=False, ttl=1800)
+def get_raw_feed(feed_url):
+    return feedparser.parse(feed_url)
+
+def fetch_rss_links(feed_url, source_name, days_back):
+    """Processes the feed and filters out articles older than the cutoff date."""
+    feed = get_raw_feed(feed_url)
     articles = []
+    
+    # Calculate the cutoff date (e.g., exactly 7 days ago from right now)
+    cutoff_date = datetime.now() - timedelta(days=days_back)
+    
     for entry in feed.entries:
+        # Step A: Parse the RSS date into a Python Datetime object
+        dt = None
+        if hasattr(entry, 'published_parsed') and entry.published_parsed:
+            dt = datetime.fromtimestamp(time.mktime(entry.published_parsed))
+            
+        # Step B: Filter out old articles
+        if dt and dt < cutoff_date:
+            continue # Skip this loop and don't add the article
+            
         articles.append({
             "title": entry.title,
             "link": entry.link,
@@ -99,7 +116,6 @@ def process_with_ai(text, task_type, target_lang):
 # ==========================================
 st.title(config['LOCALIZATION_SUMMARY_SCREEN_TITLE'])
 
-# Sidebar Configuration
 with st.sidebar:
     st.header("⚙️ Settings")
     
@@ -107,11 +123,15 @@ with st.sidebar:
     feed_options.insert(0, "All Feeds") 
     
     selected_feed_name = st.selectbox("Select News Channel:", options=feed_options)
-    num_articles = st.slider("Articles to fetch per channel:", 1, 10, 3)
+    
+    # --- NEW SLIDER FOR DATE FILTERING ---
+    st.divider()
+    st.subheader("Date & Volume Filter")
+    days_back = st.slider("Include news from the last X days:", min_value=1, max_value=30, value=7)
+    num_articles = st.slider("Max articles to fetch per channel:", 1, 10, 3)
     
     st.divider()
     st.subheader("Target Language")
-    # We keep the language selector so the buttons know what language to translate into
     target_language = st.selectbox("Translate to:", ["Turkish", "Danish", "English"])
 
     st.divider()
@@ -130,7 +150,6 @@ with st.sidebar:
     st.subheader("Sosyal Medyadan Okuma")
 
 # --- SESSION STATE INITIALIZATION ---
-# This is crucial: it remembers the articles so they don't disappear when a button is clicked
 if "articles" not in st.session_state:
     st.session_state.articles = []
 
@@ -138,18 +157,18 @@ if "articles" not in st.session_state:
 if st.button("Fetch News", type="primary"):
     fetched_articles = []
     
-    with st.spinner("Fetching RSS feeds..."):
+    with st.spinner(f"Fetching RSS feeds from the last {days_back} days..."):
         if selected_feed_name == "All Feeds":
             for name, url in config.get("FEEDS", {}).items():
-                fetched_articles.extend(fetch_rss_links(url, name)[:num_articles])
+                # Notice we pass the 'days_back' parameter into our new function
+                fetched_articles.extend(fetch_rss_links(url, name, days_back)[:num_articles])
         else:
             url = config["FEEDS"][selected_feed_name]
-            fetched_articles = fetch_rss_links(url, selected_feed_name)[:num_articles]
+            fetched_articles = fetch_rss_links(url, selected_feed_name, days_back)[:num_articles]
         
     if not fetched_articles:
-        st.error("Could not find any articles. Check your config file or internet connection.")
+        st.warning(f"Could not find any articles from the last {days_back} days. Try increasing the date range!")
     else:
-        # Save the fetched articles into memory
         st.session_state.articles = fetched_articles
 
 
@@ -157,14 +176,13 @@ if st.button("Fetch News", type="primary"):
 if st.session_state.articles:
     st.divider()
     
-    # Loop through articles in chunks of 2 to create rows
     for i in range(0, len(st.session_state.articles), 2):
         cols = st.columns(2)
         
         for j in range(2):
             if i + j < len(st.session_state.articles):
                 idx = i + j
-                art = st.session_state.articles[idx] # Pointing directly to the session_state item
+                art = st.session_state.articles[idx]
                 
                 with cols[j]:
                     with st.container(border=True):
@@ -178,15 +196,12 @@ if st.session_state.articles:
                         
                         st.write(f"*{snippet}*")
                         
-                        # Create a mini-grid for the action buttons side-by-side
                         btn_col1, btn_col2 = st.columns(2)
                         
-                        # --- ACTION 1: TRANSLATE SNIPPET ---
                         if btn_col1.button("🌐 Translate", key=f"trans_{idx}"):
                             with st.spinner("Translating..."):
                                 art['translation_result'] = process_with_ai(clean_summary, "translate_only", target_language)
                         
-                        # --- ACTION 2: DEEP ANALYZE ---
                         if btn_col2.button("🧠 Deep Analyze", key=f"analyze_{idx}"):
                             with st.spinner("Analyzing site..."):
                                 raw_text = extract_article_text(art['link'])
@@ -196,11 +211,8 @@ if st.session_state.articles:
                                     st.warning("⚠️ Could not extract full text. Translating summary instead.")
                                     art['analysis_result'] = process_with_ai(clean_summary, "translate_only", target_language)
 
-                        # --- DISPLAY RESULTS (Persisted from session_state) ---
                         if "translation_result" in art:
                             st.success(f"**Translated ({target_language}):**\n\n{art['translation_result']}")
                             
                         if "analysis_result" in art:
                             st.info(f"**AI Analysis ({target_language}):**\n\n{art['analysis_result']}")
-
-    
