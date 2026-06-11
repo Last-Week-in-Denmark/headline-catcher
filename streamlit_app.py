@@ -51,35 +51,46 @@ if not check_password():
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Cache the network request for 30 minutes so we don't get blocked by news sites
+# Cache the network request for 30 minutes
 @st.cache_data(show_spinner=False, ttl=1800)
-def get_raw_feed(feed_url):
-    return feedparser.parse(feed_url)
+def get_cached_feed_entries(feed_url):
+    """Fetches feed and converts complex objects into simple, cacheable dictionaries."""
+    feed = feedparser.parse(feed_url)
+    entries = []
+    for entry in feed.entries:
+        entries.append({
+            "title": entry.get("title", ""),
+            "link": entry.get("link", ""),
+            "published": entry.get("published", "No date provided"),
+            "summary": entry.get("summary", "No standard RSS summary available."),
+            # Safely capture the parsed time if it exists
+            "published_parsed": getattr(entry, 'published_parsed', None)
+        })
+    return entries
 
 def fetch_rss_links(feed_url, source_name, days_back):
     """Processes the feed and filters out articles older than the cutoff date."""
-    feed = get_raw_feed(feed_url)
+    # Call our new cache-safe function
+    entries = get_cached_feed_entries(feed_url) 
     articles = []
     
-    # Calculate the cutoff date (e.g., exactly 7 days ago from right now)
+    # Calculate the cutoff date
     cutoff_date = datetime.now() - timedelta(days=days_back)
     
-    for entry in feed.entries:
-        # Step A: Parse the RSS date into a Python Datetime object
+    for entry in entries:
         dt = None
-        if hasattr(entry, 'published_parsed') and entry.published_parsed:
-            dt = datetime.fromtimestamp(time.mktime(entry.published_parsed))
+        if entry["published_parsed"]:
+            dt = datetime.fromtimestamp(time.mktime(entry["published_parsed"]))
             
-        # Step B: Filter out old articles
         if dt and dt < cutoff_date:
-            continue # Skip this loop and don't add the article
+            continue # Skip old articles
             
         articles.append({
-            "title": entry.title,
-            "link": entry.link,
+            "title": entry["title"],
+            "link": entry["link"],
             "source": source_name,
-            "published": entry.get("published", "No date provided"),
-            "rss_summary": entry.get("summary", "No standard RSS summary available.")
+            "published": entry["published"],
+            "rss_summary": entry["summary"]
         })
     return articles
 
