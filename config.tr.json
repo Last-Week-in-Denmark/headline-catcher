@@ -21,6 +21,7 @@
     "The Local Denmark": "https://www.thelocal.dk/rss",
     "Türkiye'deki Danimarka": "https://um.dk/tyrkiet",
     "DR": "https://www.dr.dk/rss",
+    //https://www.dr.dk/service/dr-nyheder-som-rss-feed-1
     "TV2": "https://www.tv2.dk/rss",
     "Berlingske": "https://www.berlingske.dk/rss",
     "Altinget": "https://www.altinget.dk/rss",
@@ -30,6 +31,7 @@
     "Uniavisen": "https://uniavisen.dk/rss",
     "Jyllands Posten": "https://jyllands-posten.dk/rss",
     "København Liv": "https://kobenhavnliv.dk/rss"
+
   },
   "LOCALIZATION_PASSWORD_SCREEN": "🔒 Manşet Toplayıcıya Giriş (Danimarka'da Geçen Hafta)",
   "LOCALIZATION_PASSWORD_SCREEN_PROMPT": "Özetleyiciye erişmek için takım şifresini girin.",
