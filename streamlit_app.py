@@ -7,6 +7,7 @@ import json
 import re
 import time
 from datetime import datetime, timedelta
+import traceback
 
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
@@ -162,8 +163,9 @@ def batch_save_new_articles(articles_list):
             conn.update(spreadsheet=my_sheet_url, worksheet="Sheet1", data=updated_df)
             
     except Exception as e:
-        # FIX 3: Push the error to the UI
-        st.error(f"🚨 Batch Cache Error: {e}")
+        # This will print the exact line number and full error to your screen!
+        st.error("🚨 CRITICAL BATCH ERROR")
+        st.code(traceback.format_exc())
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def get_cached_feed_entries(feed_url):
