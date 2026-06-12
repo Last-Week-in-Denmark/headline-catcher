@@ -1,5 +1,6 @@
 
 import streamlit as st
+import streamlit.components.v1 as components
 import feedparser
 from newspaper import Article
 from openai import OpenAI
@@ -231,33 +232,72 @@ if st.session_state.articles:
                         if "analysis_result" in art:
                             st.info(f"**Metin Analizi () ({target_language}):**\n\n{art['analysis_result']}")
 
-                        # --- NEW: BIG COPY BUTTON LOGIC ---
+                        # --- RICH-TEXT COPY BUTTON ---
                         st.write("") 
-                        if st.button("📋 COPY TO CLIPBOARD", key=f"copy_{idx}", use_container_width=True, type="secondary"):
+                        
+                        # 1. Determine the best available content
+                        if "analysis_result" in art:
+                            best_text = art["analysis_result"]
+                        elif "translation_result" in art:
+                            best_text = art["translation_result"]
+                        else:
+                            best_text = clean_summary
+                        
+                        # 2. Get the abbreviation and format the HTML
+                        abbr = get_source_abbreviation(art['source'])
+                        formatted_text = best_text.replace('\n', '<br>')
+                        
+                        # Use backslash to escape single quotes so it doesn't break the Javascript below
+                        safe_html = f"{formatted_text}<br><br><a href='{art['link']}'>{abbr}</a>".replace("'", "\\'")
+                        
+                        # 3. Create a custom Javascript button to push Rich Text to the clipboard
+                        copy_html = f"""
+                        <div style="margin-top: 5px;">
+                            <button id="copy-btn" style="
+                                width: 100%;
+                                background-color: #2b2b36;
+                                color: #ffffff;
+                                border: 1px solid #4b4b5c;
+                                padding: 8px;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-family: sans-serif;
+                                font-size: 14px;
+                                font-weight: bold;
+                                transition: background-color 0.2s;
+                            ">📋 COPY RENDERED HTML</button>
+                            <p id="msg" style="display:none; color:#00cc44; font-size:12px; margin-top:6px; text-align:center; font-family:sans-serif;">✅ Copied as Rich Text!</p>
+                        </div>
+                        
+                        <script>
+                        document.getElementById("copy-btn").addEventListener("click", function() {{
+                            const htmlContent = '{safe_html}';
                             
-                            # 1. Determine the best available content
-                            if "analysis_result" in art:
-                                best_text = art["analysis_result"]
-                            elif "translation_result" in art:
-                                best_text = art["translation_result"]
-                            else:
-                                best_text = clean_summary
+                            // Create a hidden div to render the HTML properly
+                            const div = document.createElement("div");
+                            div.innerHTML = htmlContent;
+                            div.style.position = "absolute";
+                            div.style.left = "-9999px";
+                            document.body.appendChild(div);
                             
-                            # 2. Get the abbreviation (e.g., TechCrunch -> TC)
-                            abbr = get_source_abbreviation(art['source'])
+                            // Select the rendered text
+                            const range = document.createRange();
+                            range.selectNodeContents(div);
+                            const sel = window.getSelection();
+                            sel.removeAllRanges();
+                            sel.addRange(range);
                             
-                            # 3. Format with HTML
-                            # Convert standard line breaks into HTML breaks so bullet points look correct
-                            formatted_text = best_text.replace('\n', '<br>')
+                            // Execute browser copy command
+                            document.execCommand("copy");
                             
-                            # Build the final HTML string
-                            final_text = f"{formatted_text}<br><br><a href='{art['link']}'>{abbr}</a>"
-                            art['copy_ready'] = final_text
-                            
-                        # If the user clicked the copy button, reveal the 1-click copy box
-                        if "copy_ready" in art:
-                            st.markdown("👇 **Click the little clipboard icon in the top-right corner of this box to copy!**")
-                            
-                            # st.code(art['copy_ready'], language="markdown")
-                            # Changed language from "markdown" to "html"
-                            st.code(art['copy_ready'], language="html")
+                            // Cleanup and show success message
+                            document.body.removeChild(div);
+                            const msg = document.getElementById("msg");
+                            msg.style.display = "block";
+                            setTimeout(() => msg.style.display = "none", 2500);
+                        }});
+                        </script>
+                        """
+                        
+                        # Render the custom button inside the Streamlit app
+                        components.html(copy_html, height=75)
