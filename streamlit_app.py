@@ -232,7 +232,7 @@ if st.session_state.articles:
                         if "analysis_result" in art:
                             st.info(f"**Metin Analizi () ({target_language}):**\n\n{art['analysis_result']}")
 
-                        # --- RICH-TEXT COPY BUTTON ---
+                        # --- NEW: TRUE RICH-TEXT COPY BUTTON ---
                         st.write("") 
                         
                         # 1. Determine the best available content
@@ -243,18 +243,22 @@ if st.session_state.articles:
                         else:
                             best_text = clean_summary
                         
-                        # 2. Get the abbreviation and format the HTML
+                        # 2. Get the abbreviation and format the text
                         #abbr = get_source_abbreviation(art['source'])
                         abbr = art['source']
                         formatted_text = best_text.replace('\n', '<br>')
                         
-                        # Use backslash to escape single quotes so it doesn't break the Javascript below
-                        safe_html = f"{formatted_text}<br><br><a href='{art['link']}'>{(abbr)}</a>".replace("'", "\\'")
+                        # 3. Build the final HTML (Bold Title + Body + Source Link)
+                        # We use <strong> for bold text and add two breaks before the body
+                        full_html = f"<strong>{art['title']}</strong><br><br>{formatted_text}<br><br><a href='{art['link']}'>{abbr}</a>"
                         
-                        # 3. Create a custom Javascript button to push Rich Text to the clipboard
+                        # Use backslash to escape single quotes so it doesn't break the Javascript below
+                        safe_html = full_html.replace("'", "\\'")
+                        
+                        # 4. Create a custom Javascript button to push Rich Text to the clipboard
                         copy_html = f"""
                         <div style="margin-top: 5px;">
-                            <button id="copy-btn" style="
+                            <button id="copy-btn-{idx}" style="
                                 width: 100%;
                                 background-color: #2b2b36;
                                 color: #ffffff;
@@ -267,11 +271,11 @@ if st.session_state.articles:
                                 font-weight: bold;
                                 transition: background-color 0.2s;
                             ">📋 COPY RENDERED HTML</button>
-                            <p id="msg" style="display:none; color:#00cc44; font-size:12px; margin-top:6px; text-align:center; font-family:sans-serif;">✅ Copied as Rich Text!</p>
+                            <p id="msg-{idx}" style="display:none; color:#00cc44; font-size:12px; margin-top:6px; text-align:center; font-family:sans-serif;">✅ Copied as Rich Text!</p>
                         </div>
                         
                         <script>
-                        document.getElementById("copy-btn").addEventListener("click", function() {{
+                        document.getElementById("copy-btn-{idx}").addEventListener("click", function() {{
                             const htmlContent = '{safe_html}';
                             
                             // Create a hidden div to render the HTML properly
@@ -293,7 +297,7 @@ if st.session_state.articles:
                             
                             // Cleanup and show success message
                             document.body.removeChild(div);
-                            const msg = document.getElementById("msg");
+                            const msg = document.getElementById("msg-{idx}");
                             msg.style.display = "block";
                             setTimeout(() => msg.style.display = "none", 2500);
                         }});
