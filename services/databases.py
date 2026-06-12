@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from utils import clean_html
+import utils
 from gsheetsdb import connect
 
 def save_to_database(article_data, target_lang):
@@ -61,7 +61,7 @@ def save_to_database(article_data, target_lang):
                 "published_date": article_data['published'],
                 "processing_tier": processing_tier,
                 "target_language": target_lang if processing_tier != "1. Default" else "Original",
-                "raw_rss_snippet": clean_html(article_data['rss_summary']),
+                "raw_rss_snippet": utils.clean_html(article_data['rss_summary']),
                 "translated_text": translated_text,
                 "ai_summary": ai_summary
             }])
@@ -112,7 +112,7 @@ def batch_save_new_articles(articles_list):
                     "published_date": art['published'],
                     "processing_tier": "1. Default",
                     "target_language": "Original",
-                    "raw_rss_snippet": clean_html(art['rss_summary']),
+                    "raw_rss_snippet": utils.clean_html(art['rss_summary']),
                     "translated_text": "",
                     "ai_summary": ""
                 })
