@@ -246,14 +246,18 @@ if st.session_state.articles:
                             # 2. Get the abbreviation (e.g., TechCrunch -> TC)
                             abbr = get_source_abbreviation(art['source'])
                             
-                            # 3. Format with the markdown hyperlink
-                            final_text = f"{best_text}\n\n([{abbr}]({art['link']}))"
+                            # 3. Format with HTML
+                            # Convert standard line breaks into HTML breaks so bullet points look correct
+                            formatted_text = best_text.replace('\n', '<br>')
+                            
+                            # Build the final HTML string
+                            final_text = f"{formatted_text}<br><br><a href='{art['link']}'>{abbr}</a>"
                             art['copy_ready'] = final_text
                             
                         # If the user clicked the copy button, reveal the 1-click copy box
                         if "copy_ready" in art:
                             st.markdown("👇 **Click the little clipboard icon in the top-right corner of this box to copy!**")
-                            st.code(art['copy_ready'], language="markdown")
-
-
-
+                            
+                            # st.code(art['copy_ready'], language="markdown")
+                            # Changed language from "markdown" to "html"
+                            st.code(art['copy_ready'], language="html")
