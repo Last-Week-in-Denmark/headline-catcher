@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import utils
 from gsheetsdb import connect
+
+import services.utils as utils
 
 def save_to_database(article_data, target_lang):
     """

@@ -15,7 +15,7 @@ from streamlit_gsheets import GSheetsConnection
 # Internal Imports
 
 from services.databases import save_to_database, batch_save_new_articles
-from utils import clean_html, get_source_abbreviation
+from services.utils import clean_html, get_source_abbreviation
 
 # ==========================================
 # ENVIRONMENT & CONFIGURATION
