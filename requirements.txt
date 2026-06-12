@@ -5,3 +5,4 @@ lxml_html_clean
 st-gsheets-connection
 pandas
 openai
+gsheetsdb
