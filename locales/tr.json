@@ -1,0 +1,8 @@
+{
+  "app_title": "📰 Yapay Zekâ Haber Özeti",
+  "btn_fetch": "Haberleri Getir",
+  "btn_translate": "🌐 Çevir",
+  "btn_analyze": "👀 Metni Analiz Et",
+  "msg_translating": "Çeviriliyor ve kaydediliyor...",
+  "llm_target_lang": "Turkish"
+}

@@ -1,0 +1,8 @@
+{
+  "app_title": "📰 AI News Summarizer",
+  "btn_fetch": "Fetch News",
+  "btn_translate": "🌐 Translate",
+  "btn_analyze": "👀 Deep Analyze",
+  "msg_translating": "Translating and saving...",
+  "llm_target_lang": "English"
+}

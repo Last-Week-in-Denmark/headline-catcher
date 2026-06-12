@@ -25,6 +25,22 @@ config_file = f"config.{current_env}.json"
 with open(config_file, "r") as f:
     config = json.load(f)
 
+# 1. Default to Turkish if the user hasn't picked yet
+#if "app_lang" not in st.session_state:
+    #st.session_state.app_lang = "en"
+st.session_state.app_lang = "tr"
+
+# 2. Cache the loading of the dictionary so it's lightning fast
+@st.cache_data
+def load_translations(lang_code):
+    with open(f"locales/{lang_code}.json", "r", encoding="utf-8") as f:
+        return json.load(f)
+
+# 3. Create the standard t() helper function
+def t(key):
+    translations = load_translations(st.session_state.app_lang)
+    return translations.get(key, f"Missing translation: {key}")
+
 # ==========================================
 # UTILITY FUNCTIONS
 # ==========================================
@@ -323,7 +339,32 @@ def process_with_ai(text, task_type, target_lang):
 # ==========================================
 # 3. STREAMLIT USER INTERFACE
 # ==========================================
-st.title(config['LOCALIZATION_SUMMARY_SCREEN_TITLE'])
+
+# --- MAIN UI ---
+st.title(t("app_title"))
+
+# Instead of st.button("Fetch News")
+if st.button(t("btn_fetch"), type="primary"):
+    pass
+
+# Instead of st.spinner("Çeviriliyor...")
+with st.spinner(t("msg_translating")):
+    pass
+
+# --- SIDEBAR ---
+# Map the pretty display names to the file codes
+lang_options = {"English": "en", "Türkçe": "tr", "Dansk": "da"}
+
+# When this changes, it automatically updates st.session_state.app_lang
+selected_display_lang = st.sidebar.selectbox(
+    "🌍 App Language:", 
+    options=list(lang_options.keys()),
+    # Find the index of the current active language to set the default
+    index=list(lang_options.values()).index(st.session_state.app_lang)
+)
+
+# Update the system state if they clicked a new language
+st.session_state.app_lang = lang_options[selected_display_lang]
 
 # Sidebar Configuration
 with st.sidebar:
