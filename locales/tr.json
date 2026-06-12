@@ -3,6 +3,6 @@
   "btn_fetch": "Haberleri Getir",
   "btn_translate": "🌐 Çevir",
   "btn_analyze": "👀 Metni Analiz Et",
-  "msg_translating": "Çeviriliyor ve kaydediliyor...",
+  "msg_translating": "Son {days_back} günkü içerik çeviriliyor ve kaydediliyor... ",
   "llm_target_lang": "Turkish"
 }

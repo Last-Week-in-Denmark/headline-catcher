@@ -3,6 +3,6 @@
   "btn_fetch": "Fetch News",
   "btn_translate": "🌐 Translate",
   "btn_analyze": "👀 Deep Analyze",
-  "msg_translating": "Translating and saving...",
+  "msg_translating": "Translating last {days_back} days of content and saving...",
   "llm_target_lang": "English"
 }

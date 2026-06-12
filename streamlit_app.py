@@ -343,13 +343,6 @@ def process_with_ai(text, task_type, target_lang):
 # --- MAIN UI ---
 st.title(t("app_title"))
 
-# Instead of st.button("Fetch News")
-if st.button(t("btn_fetch"), type="primary"):
-    pass
-
-# Instead of st.spinner("Çeviriliyor...")
-with st.spinner(t("msg_translating")):
-    pass
 
 # --- SIDEBAR ---
 # Map the pretty display names to the file codes
@@ -403,11 +396,12 @@ with st.sidebar:
 if "articles" not in st.session_state:
     st.session_state.articles = []
 
-# Main Fetch Workflow
-if st.button("Fetch News", type="primary"):
+# Fetch Button
+if st.button(t("btn_fetch"), type="primary"):
     fetched_articles = []
     
-    with st.spinner(f"Fetching RSS feeds from the last {days_back} days..."):
+    # Spinner
+    with st.spinner(f"{t("msg_translating")}"):
         if selected_feed_name == "All Feeds":
             for name, url in config.get("FEEDS", {}).items():
                 fetched_articles.extend(fetch_rss_links(url, name, days_back)[:num_articles])
