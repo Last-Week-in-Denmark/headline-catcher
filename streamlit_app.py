@@ -244,11 +244,12 @@ if st.session_state.articles:
                             best_text = clean_summary
                         
                         # 2. Get the abbreviation and format the HTML
-                        abbr = get_source_abbreviation(art['source'])
+                        #abbr = get_source_abbreviation(art['source'])
+                        abbr = art['source']
                         formatted_text = best_text.replace('\n', '<br>')
                         
                         # Use backslash to escape single quotes so it doesn't break the Javascript below
-                        safe_html = f"{formatted_text}<br><br><a href='{art['link']}'>{abbr}</a>".replace("'", "\\'")
+                        safe_html = f"{formatted_text}<br><br><a href='{art['link']}'>{(abbr)}</a>".replace("'", "\\'")
                         
                         # 3. Create a custom Javascript button to push Rich Text to the clipboard
                         copy_html = f"""
