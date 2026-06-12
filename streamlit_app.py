@@ -229,7 +229,8 @@ with st.sidebar:
     target_language = st.selectbox("Translate to:", ["Turkish", "Danish", "English"])
 
     st.divider()
-    st.subheader(f"Google Sheets Linki: {config.get('GOOGLE_SHEET_URL', 'Not configured')}")
+    gsheet_url = st.secrets.get("connections", {}).get("gsheets", {}).get("spreadsheet_link", 'Not configured') 
+    st.write(f"Current Google Sheets URL: {gsheet_url}")
     st.divider()
     st.subheader("Eklenecek Özellikler (Gelecekte):")
     st.divider()
