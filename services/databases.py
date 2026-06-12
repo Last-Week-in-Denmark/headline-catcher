@@ -10,7 +10,14 @@ def save_to_database(article_data, target_lang, clean_html_func):
     """Auto-saves or updates the article in Google Sheets."""
     try:
         my_sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet_link"]
+        
+        # Read the live sheet
         existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1", ttl=0)
+        
+        # --- THE FIX ---
+        # Force pandas to fill all empty cells with an empty string ("") 
+        # and treat every column as text so it doesn't guess they are numbers (float64)
+        existing_data = existing_data.fillna("").astype(str)
         
         if 'article_id' not in existing_data.columns:
             existing_data = pd.DataFrame(columns=['article_id', 'timestamp', 'source', 'title', 'published_date', 'processing_tier', 'target_language', 'raw_rss_snippet', 'translated_text', 'ai_summary'])
@@ -53,6 +60,7 @@ def save_to_database(article_data, target_lang, clean_html_func):
             
             updated_df = pd.concat([existing_data, new_row], ignore_index=True)
             conn.update(spreadsheet=my_sheet_url, worksheet="Sheet1", data=updated_df)
+            
             return "saved"
             
     except Exception as e:
@@ -66,7 +74,13 @@ def batch_save_new_articles(articles_list, clean_html_func):
     """Checks the database and bulk-saves any articles that aren't already cached."""
     try:
         my_sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet_link"]
+        
+        # Read the live sheet
         existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1", usecols=list(range(10)), ttl=0)
+        
+        # --- THE FIX ---
+        # Force pandas to treat all blanks as text, not float64
+        existing_data = existing_data.fillna("").astype(str)
         
         if 'article_id' not in existing_data.columns:
              existing_data['article_id'] = ""

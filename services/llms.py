@@ -1,16 +1,12 @@
 
 from xmlrpc import client
+import streamlit as st
+from openai import OpenAI
+
+# Initialize the client HERE, so this file owns it
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def process_with_ai(text, task_type, target_lang):
-    """
-    Passes text to OpenAI GPT-4o-mini with specific system instructions.
-    
-    Input:
-      - text (str): The raw summary or scraped full body text.
-      - task_type (str): "translate_only" or "deep_analyze".
-      - target_lang (str): User's selected output language.
-    Output: (str) - AI generated text.
-    """
     if task_type == "translate_only":
         system_instruction = f"You are a professional translator. Translate the following text into {target_lang}. Do not summarize, just translate accurately."
     else: 
@@ -23,7 +19,7 @@ def process_with_ai(text, task_type, target_lang):
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": text}
             ],
-            temperature=0.3 # Low temperature for factual consistency
+            temperature=0.3
         )
         return response.choices[0].message.content
     except Exception as e:
