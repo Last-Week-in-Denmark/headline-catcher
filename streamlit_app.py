@@ -88,29 +88,7 @@ if not check_password():
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-@st.cache_data(show_spinner=False, ttl=1800)
-def get_cached_feed_entries(feed_url):
-    """
-    Downloads raw RSS XML and converts it to basic Python dictionaries.
-    
-    Input: feed_url (str) - URL of the RSS feed.
-    Output: list - Cleaned dictionary entries.
-    
-    DESIGN CHOICE: This is wrapped in `@st.cache_data(ttl=1800)` (30 mins) so we don't
-    constantly ping and get IP-banned by news websites when the user interacts with the UI.
-    We return basic dictionaries because complex feedparser objects cannot be cached.
-    """
-    feed = feedparser.parse(feed_url)
-    entries = []
-    for entry in feed.entries:
-        entries.append({
-            "title": entry.get("title", ""),
-            "link": entry.get("link", ""),
-            "published": entry.get("published", "No date provided"),
-            "summary": entry.get("summary", "No standard RSS summary available."),
-            "published_parsed": getattr(entry, 'published_parsed', None)
-        })
-    return entries
+
 
 def process_with_ai(text, task_type, target_lang):
     """
