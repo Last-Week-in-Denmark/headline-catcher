@@ -12,32 +12,59 @@ import traceback
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-# --- ENVIRONMENT & CONFIGURATION ---
+# ==========================================
+# ENVIRONMENT & CONFIGURATION
+# ==========================================
+# Determine environment (dev/prod/tr). 
+# DESIGN CHOICE: Loading configs dynamically allows the app to be easily 
+# translated or repurposed for other teams without changing the core Python code.
 current_env = os.environ.get("ENV", "dev")
-current_env = "tr"
+current_env = "tr" # Forced override for Turkish setup
 
 config_file = f"config.{current_env}.json"
 with open(config_file, "r") as f:
     config = json.load(f)
 
-# --- UTILS ---
+# ==========================================
+# UTILITY FUNCTIONS
+# ==========================================
 def clean_html(raw_html):
-    """Removes HTML tags from text for clean snippets."""
+    """
+    Strips raw HTML tags from a text string.
+    
+    Input: raw_html (str) - The raw summary text from the RSS feed.
+    Output: cleantext (str) - Pure text safe for Streamlit rendering.
+    """
     cleanr = re.compile('<.*?>')
     cleantext = re.sub(cleanr, '', raw_html)
     return cleantext.strip()
 
 def get_source_abbreviation(name):
-    """Generates a short abbreviation for the news source (e.g., 'BBC World News' -> 'BWN')."""
+    """
+    Creates a compact 3-4 letter abbreviation for a news source.
+    
+    Input: name (str) - Full name of the news source (e.g., "TechCrunch").
+    Output: (str) - Abbreviation (e.g., "TEC" or "TC").
+    """
     words = [w for w in re.split(r'\W+', name) if w]
     if len(words) == 1:
         return name[:3].upper()
     return "".join([w[0].upper() for w in words])[:4]
 
+
 # ==========================================
 # 1. TEAM PASSWORD PROTECTION LOGIC
 # ==========================================
 def check_password():
+    """
+    Validates user access against the password stored in Streamlit Secrets.
+    
+    Input: None.
+    Output: (bool) - True if authenticated, False otherwise.
+    
+    DESIGN CHOICE: Uses `st.session_state` so the user doesn't have to 
+    re-type the password every time they click a button and trigger a page rerun.
+    """
     if "password_correct" not in st.session_state:
         st.session_state["password_correct"] = False
 
@@ -48,37 +75,46 @@ def check_password():
         
         if pwd == st.secrets["TEAM_PASSWORD"]:
             st.session_state["password_correct"] = True
-            st.rerun()
+            st.rerun() # Refresh page to show the main app
         elif pwd:
             st.error(config['LOCALIZATION_PASSWORD_SCREEN_INCORRECT_PASSWORD'])
         return False
     return True
 
 if not check_password():
-    st.stop()
+    st.stop() # Halts all script execution if not logged in
+
 
 # ==========================================
 # 2. CORE FUNCTIONS & DATABASE
 # ==========================================
 
-# LLMs
+# Initialize global connections
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-# Database
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def save_to_database(article_data, target_lang):
-    """Auto-saves or updates the article in Google Sheets."""
+    """
+    Upserts (Updates or Inserts) a single article into Google Sheets.
+    Triggered silently in the background when an AI processing button is clicked.
+    
+    Input: 
+      - article_data (dict): The specific article dictionary being processed.
+      - target_lang (str): The language selected in the sidebar.
+    Output: (str) - "updated", "saved", or "error".
+    """
     try:
         my_sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet_link"]
         
-        # FIX 1: Add ttl=0 to bypass the cache and ALWAYS read live data
+        # DESIGN CHOICE: ttl=0 bypasses Streamlit's built-in memory cache.
+        # This is critical so we don't accidentally overwrite new data with stale data.
         existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1", ttl=0)
         
-        # FIX 2: Prevent KeyError if the sheet is completely blank
+        # Safeguard: If the sheet is brand new/blank, manually create headers
         if 'article_id' not in existing_data.columns:
             existing_data = pd.DataFrame(columns=['article_id', 'timestamp', 'source', 'title', 'published_date', 'processing_tier', 'target_language', 'raw_rss_snippet', 'translated_text', 'ai_summary'])
 
+        # Determine how deep the AI processed the text
         processing_tier = "1. Default"
         translated_text = ""
         ai_summary = ""
@@ -90,21 +126,22 @@ def save_to_database(article_data, target_lang):
             processing_tier = "2. Translate RSS"
             translated_text = article_data["translation_result"]
 
+        # DESIGN CHOICE: UPSERT LOGIC
+        # Instead of creating duplicates, we find the existing row via the URL ('article_id')
+        # and simply update the translation/summary columns.
         if article_data['link'] in existing_data['article_id'].values:
             row_idx = existing_data.index[existing_data['article_id'] == article_data['link']].tolist()[0]
-            
             existing_data.at[row_idx, 'processing_tier'] = processing_tier
             existing_data.at[row_idx, 'target_language'] = target_lang
             
-            if translated_text:
-                existing_data.at[row_idx, 'translated_text'] = translated_text
-            if ai_summary:
-                existing_data.at[row_idx, 'ai_summary'] = ai_summary
+            if translated_text: existing_data.at[row_idx, 'translated_text'] = translated_text
+            if ai_summary: existing_data.at[row_idx, 'ai_summary'] = ai_summary
                 
             conn.update(spreadsheet=my_sheet_url, worksheet="Sheet1", data=existing_data)
             return "updated"
             
         else:
+            # Fallback: Create a new row if it somehow wasn't cached during fetch
             new_row = pd.DataFrame([{
                 "article_id": article_data['link'],
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -123,6 +160,7 @@ def save_to_database(article_data, target_lang):
             return "saved"
             
     except Exception as e:
+        # User-friendly error handling for common API issues
         error_str = str(e)
         if "403" in error_str or "API has not been used" in error_str or "Permission denied" in error_str:
             st.error("🚨 **Google Sheets Error:** Ensure the **Google Sheets API** is enabled in your Google Cloud Console, and that your bot's email is invited as an **Editor** to the spreadsheet. https://console.developers.google.com/apis/api/sheets.googleapis.com/overview")
@@ -132,17 +170,24 @@ def save_to_database(article_data, target_lang):
             return "error"
 
 def batch_save_new_articles(articles_list):
-    """Checks the database and bulk-saves any articles that aren't already cached."""
+    """
+    Bulk-saves an array of fetched articles into Google Sheets instantly.
+    Triggered once during the main 'Fetch News' routine.
+    
+    Input: articles_list (list) - List of article dictionaries.
+    Output: None.
+    
+    DESIGN CHOICE: Doing this in bulk prevents hitting Google API rate limits. 
+    It acts as our historical "cache" so we never lose tracked links.
+    """
     try:
         my_sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet_link"]
-        
-        # FIX 1: ttl=0 to bypass cache
         existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1", usecols=list(range(10)), ttl=0)
         
-        # FIX 2: Prevent KeyError on blank sheets
         if 'article_id' not in existing_data.columns:
              existing_data['article_id'] = ""
              
+        # Using a python set() makes checking for duplicates lightning fast
         existing_urls = set(existing_data['article_id'].dropna().values)
         
         new_rows = []
@@ -177,6 +222,16 @@ def batch_save_new_articles(articles_list):
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def get_cached_feed_entries(feed_url):
+    """
+    Downloads raw RSS XML and converts it to basic Python dictionaries.
+    
+    Input: feed_url (str) - URL of the RSS feed.
+    Output: list - Cleaned dictionary entries.
+    
+    DESIGN CHOICE: This is wrapped in `@st.cache_data(ttl=1800)` (30 mins) so we don't
+    constantly ping and get IP-banned by news websites when the user interacts with the UI.
+    We return basic dictionaries because complex feedparser objects cannot be cached.
+    """
     feed = feedparser.parse(feed_url)
     entries = []
     for entry in feed.entries:
@@ -190,6 +245,15 @@ def get_cached_feed_entries(feed_url):
     return entries
 
 def fetch_rss_links(feed_url, source_name, days_back):
+    """
+    Filters cached RSS entries based on the user's date slider.
+    
+    Input: 
+      - feed_url (str)
+      - source_name (str): Name of the source (e.g., TechCrunch).
+      - days_back (int): Dynamic value from the UI slider.
+    Output: list - Filtered articles.
+    """
     entries = get_cached_feed_entries(feed_url) 
     articles = []
     cutoff_date = datetime.now() - timedelta(days=days_back)
@@ -199,6 +263,7 @@ def fetch_rss_links(feed_url, source_name, days_back):
         if entry["published_parsed"]:
             dt = datetime.fromtimestamp(time.mktime(entry["published_parsed"]))
             
+        # Skip articles older than our dynamic cutoff date
         if dt and dt < cutoff_date:
             continue 
             
@@ -212,6 +277,12 @@ def fetch_rss_links(feed_url, source_name, days_back):
     return articles
 
 def extract_article_text(url):
+    """
+    Uses the Newspaper3k library to scrape the full article body text.
+    
+    Input: url (str)
+    Output: (str) - Full scraped text, or empty string if scraping fails/blocked.
+    """
     try:
         article = Article(url)
         article.download()
@@ -221,6 +292,15 @@ def extract_article_text(url):
         return ""
 
 def process_with_ai(text, task_type, target_lang):
+    """
+    Passes text to OpenAI GPT-4o-mini with specific system instructions.
+    
+    Input:
+      - text (str): The raw summary or scraped full body text.
+      - task_type (str): "translate_only" or "deep_analyze".
+      - target_lang (str): User's selected output language.
+    Output: (str) - AI generated text.
+    """
     if task_type == "translate_only":
         system_instruction = f"You are a professional translator. Translate the following text into {target_lang}. Do not summarize, just translate accurately."
     else: 
@@ -233,17 +313,19 @@ def process_with_ai(text, task_type, target_lang):
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": text}
             ],
-            temperature=0.3
+            temperature=0.3 # Low temperature for factual consistency
         )
         return response.choices[0].message.content
     except Exception as e:
         return f"**AI Error:** {e}"
+
 
 # ==========================================
 # 3. STREAMLIT USER INTERFACE
 # ==========================================
 st.title(config['LOCALIZATION_SUMMARY_SCREEN_TITLE'])
 
+# Sidebar Configuration
 with st.sidebar:
     st.header("⚙️ Settings")
     
@@ -276,9 +358,11 @@ with st.sidebar:
     st.divider()
     st.subheader("Sosyal Medyadan Okuma")
 
+# Initialize session state for articles so they don't vanish on button clicks
 if "articles" not in st.session_state:
     st.session_state.articles = []
 
+# Main Fetch Workflow
 if st.button("Fetch News", type="primary"):
     fetched_articles = []
     
@@ -295,7 +379,7 @@ if st.button("Fetch News", type="primary"):
     else:
         st.session_state.articles = fetched_articles
         
-        # --- NEW: AUTO-CACHE TO DATABASE ON FETCH ---
+        # Trigger background batch caching
         with st.spinner("Caching new articles to database..."):
             batch_save_new_articles(fetched_articles)
 
@@ -308,6 +392,8 @@ if st.session_state.articles:
     st.markdown(f"### 📰 Total Links Fetched: **{total_articles}**")
     st.write("") 
     
+    # DESIGN CHOICE: Creating a responsive 2-column grid.
+    # We step through the articles array 2 items at a time.
     for i in range(0, len(st.session_state.articles), 2):
         cols = st.columns(2)
         
@@ -320,14 +406,12 @@ if st.session_state.articles:
                     with st.container(border=True):
                         st.caption(f"📢 Source: **{art['source']}**")
                         st.subheader(art['title'])
-                        
-                        # Removed the inline link to make way for the big copy button
                         st.caption(f"📅 {art['published']}")
                         
+                        # Generate a clean 20-word preview of the raw RSS data
                         clean_summary = clean_html(art['rss_summary'])
                         snippet_words = clean_summary.split()[:20]
                         snippet = " ".join(snippet_words) + ("..." if len(snippet_words) >= 20 else "")
-                        
                         st.write(f"*{snippet}*")
                         
                         # --- AI ACTION BUTTONS ---
@@ -336,8 +420,7 @@ if st.session_state.articles:
                         if btn_col1.button("🌐 Çevir", key=f"trans_{idx}"):
                             with st.spinner("Çeviriliyor ve kaydediliyor..."):
                                 art['translation_result'] = process_with_ai(clean_summary, "translate_only", target_language)
-                                # AUTO-SAVE TRIGGER
-                                save_to_database(art, target_language) 
+                                save_to_database(art, target_language) # Auto-save trigger
                         
                         if btn_col2.button("👀 Metni Analiz Et", key=f"analyze_{idx}"):
                             with st.spinner("Siteye erişiliyor ve kaydediliyor..."):
@@ -347,19 +430,21 @@ if st.session_state.articles:
                                 else:
                                     st.warning("⚠️ Could not extract full text. Translating summary instead.")
                                     art['analysis_result'] = process_with_ai(clean_summary, "translate_only", target_language)
-                                # AUTO-SAVE TRIGGER
-                                save_to_database(art, target_language) 
+                                save_to_database(art, target_language) # Auto-save trigger
 
+                        # Display results if they exist in the dictionary
                         if "translation_result" in art:
                             st.success(f"**Başlık Çevirisi ({target_language}):**\n\n{art['translation_result']}")
-                            
                         if "analysis_result" in art:
                             st.info(f"**Metin Analizi ({target_language}):**\n\n{art['analysis_result']}")
 
-                        # --- NEW: TRUE RICH-TEXT COPY BUTTON ---
+                        # --- TRUE RICH-TEXT COPY BUTTON ---
+                        # DESIGN CHOICE: Streamlit's native copy functionality only copies plain text.
+                        # We use a custom st.iframe block injecting HTML/Javascript to force the 
+                        # browser's clipboard to copy this as Rich Text (allowing hyperlinks to remain active).
                         st.write("") 
                         
-                        # 1. Determine the best available content
+                        # Prioritize the most advanced text generation available
                         if "analysis_result" in art:
                             best_text = art["analysis_result"]
                         elif "translation_result" in art:
@@ -367,18 +452,13 @@ if st.session_state.articles:
                         else:
                             best_text = clean_summary
                         
-                        # 2. Get the abbreviation and format the text
                         abbr = art['source']
                         formatted_text = best_text.replace('\n', '<br>')
                         
-                        # 3. Build the final HTML (Bold Title + Body + Source Link)
-                        # We use <strong> for bold text and add two breaks before the body
+                        # Build HTML string injected into the JS
                         full_html = f"<strong>{art['title']}</strong><br><br>{formatted_text}<br><br><a href='{art['link']}'>{abbr}</a>"
-                        
-                        # Use backslash to escape single quotes so it doesn't break the Javascript below
                         safe_html = full_html.replace("'", "\\'")
                         
-                        # 4. Create a custom Javascript button to push Rich Text to the clipboard
                         copy_html = f"""
                         <div style="margin-top: 5px;">
                             <button id="copy-btn-{idx}" style="
@@ -400,25 +480,20 @@ if st.session_state.articles:
                         <script>
                         document.getElementById("copy-btn-{idx}").addEventListener("click", function() {{
                             const htmlContent = '{safe_html}';
-                            
-                            // Create a hidden div to render the HTML properly
                             const div = document.createElement("div");
                             div.innerHTML = htmlContent;
                             div.style.position = "absolute";
                             div.style.left = "-9999px";
                             document.body.appendChild(div);
                             
-                            // Select the rendered text
                             const range = document.createRange();
                             range.selectNodeContents(div);
                             const sel = window.getSelection();
                             sel.removeAllRanges();
                             sel.addRange(range);
                             
-                            // Execute browser copy command
                             document.execCommand("copy");
                             
-                            // Cleanup and show success message
                             document.body.removeChild(div);
                             const msg = document.getElementById("msg-{idx}");
                             msg.style.display = "block";
@@ -426,6 +501,4 @@ if st.session_state.articles:
                         }});
                         </script>
                         """
-                        
-                        # Render the custom button inside the Streamlit app
                         st.iframe(copy_html, height=75)
