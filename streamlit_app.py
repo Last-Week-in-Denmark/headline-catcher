@@ -187,6 +187,11 @@ if st.button("Fetch News", type="primary"):
 if st.session_state.articles:
     st.divider()
     
+    # --- NEW: TOTAL COUNTER AT THE TOP ---
+    total_articles = len(st.session_state.articles)
+    st.markdown(f"### 📰 Total Links Fetched: **{total_articles}**")
+    st.write("") # Adds a tiny bit of breathing room below the counter
+    
     for i in range(0, len(st.session_state.articles), 2):
         cols = st.columns(2)
         
@@ -198,7 +203,10 @@ if st.session_state.articles:
                 with cols[j]:
                     with st.container(border=True):
                         st.caption(f"📢 Source: **{art['source']}**")
-                        st.subheader(f"{idx+1}. {art['title']}")
+                        
+                        # --- CHANGED: Removed the 'idx+1' number from the title ---
+                        st.subheader(art['title']) 
+                        
                         st.caption(f"📅 {art['published']} | 🔗 [Read Original]({art['link']})")
                         
                         clean_summary = clean_html(art['rss_summary'])
@@ -223,7 +231,7 @@ if st.session_state.articles:
                                     art['analysis_result'] = process_with_ai(clean_summary, "translate_only", target_language)
 
                         if "translation_result" in art:
-                            st.success(f"**Translated ({target_language}):**\n\n{art['translation_result']}")
+                            st.success(f"**Başlık Çevirisi ({target_language}):**\n\n{art['translation_result']}")
                             
                         if "analysis_result" in art:
-                            st.info(f"**AI Analysis ({target_language}):**\n\n{art['analysis_result']}")
+                            st.info(f"**Metin Analizi ({target_language}):**\n\n{art['analysis_result']}")
