@@ -8,7 +8,7 @@ import traceback
 # Internal Imports
 
 from services.databases import save_to_database, batch_save_new_articles
-from services.utils import clean_html, get_source_abbreviation
+from services.utils import clean_html, get_source_abbreviation, extract_article_text
 from services.rss_engine import fetch_rss_links
 from services.llms import process_with_ai
 

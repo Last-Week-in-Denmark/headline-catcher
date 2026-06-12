@@ -1,7 +1,6 @@
 
 from xmlrpc import client
 
-
 def process_with_ai(text, task_type, target_lang):
     """
     Passes text to OpenAI GPT-4o-mini with specific system instructions.
