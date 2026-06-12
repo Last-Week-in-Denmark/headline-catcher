@@ -123,9 +123,13 @@ def save_to_database(article_data, target_lang):
             return "saved"
             
     except Exception as e:
-        # FIX 3: Push the error to the UI so we can actually see what went wrong
-        st.error(f"🚨 Save Error: {e}") 
-        return "error"
+        error_str = str(e)
+        if "403" in error_str or "API has not been used" in error_str or "Permission denied" in error_str:
+            st.error("🚨 **Google Sheets Error:** Ensure the **Google Sheets API** is enabled in your Google Cloud Console, and that your bot's email is invited as an **Editor** to the spreadsheet. https://console.developers.google.com/apis/api/sheets.googleapis.com/overview")
+            return "error"
+        else:
+            st.error(f"🚨 Save Error: {error_str}") 
+            return "error"
 
 def batch_save_new_articles(articles_list):
     """Checks the database and bulk-saves any articles that aren't already cached."""
@@ -163,9 +167,13 @@ def batch_save_new_articles(articles_list):
             conn.update(spreadsheet=my_sheet_url, worksheet="Sheet1", data=updated_df)
             
     except Exception as e:
-        # This will print the exact line number and full error to your screen!
-        st.error("🚨 CRITICAL BATCH ERROR")
-        st.code(traceback.format_exc())
+        error_str = str(e)
+        if "403" in error_str or "API has not been used" in error_str or "Permission denied" in error_str:
+            st.error("🚨 **Google Sheets Error:** Ensure the **Google Sheets API** is enabled in your Google Cloud Console, and that your bot's email is invited as an **Editor** to the spreadsheet. https://console.developers.google.com/apis/api/sheets.googleapis.com/overview")
+            return "error"
+        else:
+            st.error(f"🚨 Save Error: {error_str}") 
+            return "error"
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def get_cached_feed_entries(feed_url):
