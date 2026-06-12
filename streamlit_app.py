@@ -229,19 +229,20 @@ with st.sidebar:
     target_language = st.selectbox("Translate to:", ["Turkish", "Danish", "English"])
 
     st.divider()
+    st.subheader(f"Google Sheets Linki: {config.get('GOOGLE_SHEET_URL', 'Not configured')}")
+    st.divider()
     st.subheader("Eklenecek Özellikler (Gelecekte):")
     st.divider()
-    st.subheader("Google Sheets'e Aktarma")
+    st.subheader("İlave Feed Ekleme")
+    st.divider()
+    st.subheader("Haber Masasında Eklenecek Özellikler")
     st.divider()
     st.subheader("Word'e Aktarma")
     st.divider()
     st.subheader("Kategori İşaretleme")
     st.divider()
-    st.subheader("İlave Feed Ekleme")
-    st.divider()
-    st.subheader("Dil / Lokalizasyon")
-    st.divider()
     st.subheader("Sosyal Medyadan Okuma")
+    st.divider()
 
 # Initialize session state for articles so they don't vanish on button clicks
 if "articles" not in st.session_state:
