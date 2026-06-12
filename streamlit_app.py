@@ -1,6 +1,4 @@
-
 import streamlit as st
-import streamlit.components.v1 as components
 import feedparser
 from newspaper import Article
 from openai import OpenAI
@@ -34,10 +32,6 @@ def get_source_abbreviation(name):
     if len(words) == 1:
         return name[:3].upper()
     return "".join([w[0].upper() for w in words])[:4]
-
-# Database Management
-# Initialize the connection
-conn = st.connection("gsheets", type=GSheetsConnection)
 
 # ==========================================
 # 1. TEAM PASSWORD PROTECTION LOGIC
@@ -290,6 +284,7 @@ if st.button("Fetch News", type="primary"):
         with st.spinner("Caching new articles to database..."):
             batch_save_new_articles(fetched_articles)
 
+
 # --- GRID DISPLAY LOGIC ---
 if st.session_state.articles:
     st.divider()
@@ -358,7 +353,6 @@ if st.session_state.articles:
                             best_text = clean_summary
                         
                         # 2. Get the abbreviation and format the text
-                        #abbr = get_source_abbreviation(art['source'])
                         abbr = art['source']
                         formatted_text = best_text.replace('\n', '<br>')
                         
@@ -419,4 +413,4 @@ if st.session_state.articles:
                         """
                         
                         # Render the custom button inside the Streamlit app
-                        components.html(copy_html, height=75)
+                        st.iframe(copy_html, height=75)
