@@ -10,6 +10,9 @@ import re
 import time
 from datetime import datetime, timedelta
 
+import pandas as pd
+from streamlit_gsheets import GSheetsConnection
+
 # --- ENVIRONMENT & CONFIGURATION ---
 current_env = os.environ.get("ENV", "dev")
 current_env = "tr"
@@ -31,6 +34,10 @@ def get_source_abbreviation(name):
     if len(words) == 1:
         return name[:3].upper()
     return "".join([w[0].upper() for w in words])[:4]
+
+# Database Management
+# Initialize the connection
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 # ==========================================
 # 1. TEAM PASSWORD PROTECTION LOGIC
@@ -56,9 +63,108 @@ if not check_password():
     st.stop()
 
 # ==========================================
-# 2. CORE FUNCTIONS
+# 2. CORE FUNCTIONS & DATABASE
 # ==========================================
+
+# LLMs
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+# Database
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+def save_to_database(article_data, target_lang):
+    """Auto-saves or updates the article in Google Sheets."""
+    try:
+        my_sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet_link"]
+        
+        # Read existing data
+        existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1")
+        
+        # Determine the processing tier based on what was generated
+        processing_tier = "1. Default"
+        translated_text = ""
+        ai_summary = ""
+        
+        if "analysis_result" in article_data:
+            processing_tier = "3. Deep Analyze"
+            ai_summary = article_data["analysis_result"]
+        elif "translation_result" in article_data:
+            processing_tier = "2. Translate RSS"
+            translated_text = article_data["translation_result"]
+
+        # UPSERT LOGIC: If it already exists, update the row instead of duplicating
+        if article_data['link'] in existing_data['article_id'].values:
+            row_idx = existing_data.index[existing_data['article_id'] == article_data['link']].tolist()[0]
+            
+            # Update the specific columns
+            existing_data.at[row_idx, 'processing_tier'] = processing_tier
+            existing_data.at[row_idx, 'target_language'] = target_lang
+            
+            # Only overwrite text if we actually generated new text
+            if translated_text:
+                existing_data.at[row_idx, 'translated_text'] = translated_text
+            if ai_summary:
+                existing_data.at[row_idx, 'ai_summary'] = ai_summary
+                
+            conn.update(spreadsheet=my_sheet_url, worksheet="Sheet1", data=existing_data)
+            return "updated"
+            
+        else:
+            # It's new, append a new row
+            new_row = pd.DataFrame([{
+                "article_id": article_data['link'],
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "source": article_data['source'],
+                "title": article_data['title'],
+                "published_date": article_data['published'],
+                "processing_tier": processing_tier,
+                "target_language": target_lang if processing_tier != "1. Default" else "Original",
+                "raw_rss_snippet": clean_html(article_data['rss_summary']),
+                "translated_text": translated_text,
+                "ai_summary": ai_summary
+            }])
+            
+            updated_df = pd.concat([existing_data, new_row], ignore_index=True)
+            conn.update(spreadsheet=my_sheet_url, worksheet="Sheet1", data=updated_df)
+            return "saved"
+            
+    except Exception as e:
+        print(f"Background save error: {e}") # Fails silently so it doesn't crash the user UI
+        return "error"
+
+def batch_save_new_articles(articles_list):
+    """Checks the database and bulk-saves any articles that aren't already cached."""
+    try:
+        my_sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet_link"]
+        existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1", usecols=list(range(10)))
+        
+        # Create a set of existing URLs for lightning-fast duplicate checking
+        existing_urls = set(existing_data['article_id'].dropna().values)
+        
+        new_rows = []
+        for art in articles_list:
+            if art['link'] not in existing_urls:
+                new_rows.append({
+                    "article_id": art['link'],
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "source": art['source'],
+                    "title": art['title'],
+                    "published_date": art['published'],
+                    "processing_tier": "1. Default",
+                    "target_language": "Original",
+                    "raw_rss_snippet": clean_html(art['rss_summary']),
+                    "translated_text": "",
+                    "ai_summary": ""
+                })
+        
+        # Only ping Google Sheets if we actually have new news to add
+        if new_rows:
+            new_df = pd.DataFrame(new_rows)
+            updated_df = pd.concat([existing_data, new_df], ignore_index=True)
+            conn.update(spreadsheet=my_sheet_url, worksheet="Sheet1", data=updated_df)
+            
+    except Exception as e:
+        print(f"Batch save error: {e}") # Fails silently for the user
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def get_cached_feed_entries(feed_url):
@@ -179,7 +285,10 @@ if st.button("Fetch News", type="primary"):
         st.warning(f"Could not find any articles from the last {days_back} days. Try increasing the date range!")
     else:
         st.session_state.articles = fetched_articles
-
+        
+        # --- NEW: AUTO-CACHE TO DATABASE ON FETCH ---
+        with st.spinner("Caching new articles to database..."):
+            batch_save_new_articles(fetched_articles)
 
 # --- GRID DISPLAY LOGIC ---
 if st.session_state.articles:
@@ -211,26 +320,31 @@ if st.session_state.articles:
                         
                         st.write(f"*{snippet}*")
                         
+                        # --- AI ACTION BUTTONS ---
                         btn_col1, btn_col2 = st.columns(2)
                         
                         if btn_col1.button("🌐 Çevir", key=f"trans_{idx}"):
-                            with st.spinner("Çeviriliyor..."):
+                            with st.spinner("Çeviriliyor ve kaydediliyor..."):
                                 art['translation_result'] = process_with_ai(clean_summary, "translate_only", target_language)
+                                # AUTO-SAVE TRIGGER
+                                save_to_database(art, target_language) 
                         
                         if btn_col2.button("👀 Metni Analiz Et", key=f"analyze_{idx}"):
-                            with st.spinner("Siteye erişiliyor..."):
+                            with st.spinner("Siteye erişiliyor ve kaydediliyor..."):
                                 raw_text = extract_article_text(art['link'])
                                 if len(raw_text) > 300:
                                     art['analysis_result'] = process_with_ai(raw_text, "deep_analyze", target_language)
                                 else:
                                     st.warning("⚠️ Could not extract full text. Translating summary instead.")
                                     art['analysis_result'] = process_with_ai(clean_summary, "translate_only", target_language)
+                                # AUTO-SAVE TRIGGER
+                                save_to_database(art, target_language) 
 
                         if "translation_result" in art:
                             st.success(f"**Başlık Çevirisi ({target_language}):**\n\n{art['translation_result']}")
                             
                         if "analysis_result" in art:
-                            st.info(f"**Metin Analizi () ({target_language}):**\n\n{art['analysis_result']}")
+                            st.info(f"**Metin Analizi ({target_language}):**\n\n{art['analysis_result']}")
 
                         # --- NEW: TRUE RICH-TEXT COPY BUTTON ---
                         st.write("") 

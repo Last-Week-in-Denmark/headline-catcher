@@ -2,4 +2,6 @@ streamlit
 feedparser
 newspaper3k
 lxml_html_clean
+st-gsheets-connection
+pandas
 openai
