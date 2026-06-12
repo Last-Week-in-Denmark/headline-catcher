@@ -1,12 +1,9 @@
 import streamlit as st
-from openai import OpenAI #Consider moving to llms.py later
 import os
 import json
-from streamlit_gsheets import GSheetsConnection
 import traceback
 
 # Internal Imports
-
 from services.databases import save_to_database, batch_save_new_articles
 from services.utils import clean_html, get_source_abbreviation, extract_article_text
 from services.rss_engine import fetch_rss_links
@@ -15,28 +12,22 @@ from services.llms import process_with_ai
 # ==========================================
 # ENVIRONMENT & CONFIGURATION
 # ==========================================
-# Determine environment (dev/prod/tr). 
-# DESIGN CHOICE: Loading configs dynamically allows the app to be easily 
-# translated or repurposed for other teams without changing the core Python code.
 current_env = os.environ.get("ENV", "dev")
-current_env = "tr" # Forced override for Turkish setup
+current_env = "tr" 
 
 config_file = f"config.{current_env}.json"
 with open(config_file, "r") as f:
     config = json.load(f)
 
-# 1. Default to Turkish if the user hasn't picked yet
-#if "app_lang" not in st.session_state:
-    #st.session_state.app_lang = "en"
-st.session_state.app_lang = "tr"
+# LOCALIZATION INITIALIZATION
+if "app_lang" not in st.session_state:
+    st.session_state.app_lang = "tr"
 
-# 2. Cache the loading of the dictionary so it's lightning fast
 @st.cache_data
 def load_translations(lang_code):
     with open(f"locales/{lang_code}.json", "r", encoding="utf-8") as f:
         return json.load(f)
 
-# 3. Create the standard t() helper function
 def t(key):
     translations = load_translations(st.session_state.app_lang)
     return translations.get(key, f"Missing translation: {key}")
@@ -45,68 +36,41 @@ def t(key):
 # 1. TEAM PASSWORD PROTECTION LOGIC
 # ==========================================
 def check_password():
-    """
-    Validates user access against the password stored in Streamlit Secrets.
-    
-    Input: None.
-    Output: (bool) - True if authenticated, False otherwise.
-    
-    DESIGN CHOICE: Uses `st.session_state` so the user doesn't have to 
-    re-type the password every time they click a button and trigger a page rerun.
-    """
     if "password_correct" not in st.session_state:
         st.session_state["password_correct"] = False
 
     if not st.session_state["password_correct"]:
-        st.title(config['LOCALIZATION_PASSWORD_SCREEN'])
-        st.write(config['LOCALIZATION_PASSWORD_SCREEN_PROMPT'])
+        st.title(config.get('LOCALIZATION_PASSWORD_SCREEN', 'Login'))
+        st.write(config.get('LOCALIZATION_PASSWORD_SCREEN_PROMPT', 'Enter Password'))
         pwd = st.text_input("Password:", type="password")
         
         if pwd == st.secrets["TEAM_PASSWORD"]:
             st.session_state["password_correct"] = True
-            st.rerun() # Refresh page to show the main app
+            st.rerun() 
         elif pwd:
-            st.error(config['LOCALIZATION_PASSWORD_SCREEN_INCORRECT_PASSWORD'])
+            st.error(config.get('LOCALIZATION_PASSWORD_SCREEN_INCORRECT_PASSWORD', 'Invalid'))
         return False
     return True
 
 if not check_password():
-    st.stop() # Halts all script execution if not logged in
+    st.stop()
 
 
 # ==========================================
-# 2. CORE FUNCTIONS & DATABASE
+# 2. STREAMLIT USER INTERFACE
 # ==========================================
-
-# Initialize global connections
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-conn = st.connection("gsheets", type=GSheetsConnection)
-
-
-# ==========================================
-# 3. STREAMLIT USER INTERFACE
-# ==========================================
-
-# --- MAIN UI ---
 st.title(t("app_title"))
 
-
 # --- SIDEBAR ---
-# Map the pretty display names to the file codes
 lang_options = {"English": "en", "Türkçe": "tr", "Dansk": "da"}
 
-# When this changes, it automatically updates st.session_state.app_lang
 selected_display_lang = st.sidebar.selectbox(
     "🌍 App Language:", 
     options=list(lang_options.keys()),
-    # Find the index of the current active language to set the default
     index=list(lang_options.values()).index(st.session_state.app_lang)
 )
-
-# Update the system state if they clicked a new language
 st.session_state.app_lang = lang_options[selected_display_lang]
 
-# Sidebar Configuration
 with st.sidebar:
     st.header("⚙️ Settings")
     
@@ -121,27 +85,12 @@ with st.sidebar:
     num_articles = st.slider("Max articles to fetch per channel:", 1, 10, 3)
     
     st.divider()
-    st.subheader("Target Language")
     target_language = st.selectbox("Translate to:", ["Turkish", "Danish", "English"])
 
     st.divider()
     gsheet_url = st.secrets.get("connections", {}).get("gsheets", {}).get("spreadsheet_link", 'Not configured') 
     st.write(f"Current Google Sheets URL: {gsheet_url}")
-    st.divider()
-    st.subheader("Eklenecek Özellikler (Gelecekte):")
-    st.divider()
-    st.subheader("İlave Feed Ekleme")
-    st.divider()
-    st.subheader("Haber Masasında Eklenecek Özellikler")
-    st.divider()
-    st.subheader("Word'e Aktarma")
-    st.divider()
-    st.subheader("Kategori İşaretleme")
-    st.divider()
-    st.subheader("Sosyal Medyadan Okuma")
-    st.divider()
 
-# Initialize session state for articles so they don't vanish on button clicks
 if "articles" not in st.session_state:
     st.session_state.articles = []
 
@@ -149,8 +98,7 @@ if "articles" not in st.session_state:
 if st.button(t("btn_fetch"), type="primary"):
     fetched_articles = []
     
-    # Spinner
-    with st.spinner(f"{t("msg_translating")}"):
+    with st.spinner(t("msg_translating")):
         if selected_feed_name == "All Feeds":
             for name, url in config.get("FEEDS", {}).items():
                 fetched_articles.extend(fetch_rss_links(url, name, days_back)[:num_articles])
@@ -159,14 +107,13 @@ if st.button(t("btn_fetch"), type="primary"):
             fetched_articles = fetch_rss_links(url, selected_feed_name, days_back)[:num_articles]
         
     if not fetched_articles:
-        st.warning(f"Could not find any articles from the last {days_back} days. Try increasing the date range!")
+        st.warning(f"Could not find any articles from the last {days_back} days.")
     else:
         st.session_state.articles = fetched_articles
         
-        # Trigger background batch caching
         with st.spinner("Caching new articles to database..."):
-            batch_save_new_articles(fetched_articles)
-
+            # Notice we pass clean_html into the function so the DB file can use it!
+            batch_save_new_articles(fetched_articles, clean_html)
 
 # --- GRID DISPLAY LOGIC ---
 if st.session_state.articles:
@@ -176,8 +123,6 @@ if st.session_state.articles:
     st.markdown(f"### 📰 Total Links Fetched: **{total_articles}**")
     st.write("") 
     
-    # DESIGN CHOICE: Creating a responsive 2-column grid.
-    # We step through the articles array 2 items at a time.
     for i in range(0, len(st.session_state.articles), 2):
         cols = st.columns(2)
         
@@ -192,43 +137,36 @@ if st.session_state.articles:
                         st.subheader(art['title'])
                         st.caption(f"📅 {art['published']}")
                         
-                        # Generate a clean 20-word preview of the raw RSS data
                         clean_summary = clean_html(art['rss_summary'])
                         snippet_words = clean_summary.split()[:20]
                         snippet = " ".join(snippet_words) + ("..." if len(snippet_words) >= 20 else "")
                         st.write(f"*{snippet}*")
                         
-                        # --- AI ACTION BUTTONS ---
                         btn_col1, btn_col2 = st.columns(2)
                         
-                        if btn_col1.button("🌐 Çevir", key=f"trans_{idx}"):
-                            with st.spinner("Çeviriliyor ve kaydediliyor..."):
+                        # Use localization for the buttons
+                        if btn_col1.button(t("btn_translate"), key=f"trans_{idx}"):
+                            with st.spinner(t("msg_translating")):
                                 art['translation_result'] = process_with_ai(clean_summary, "translate_only", target_language)
-                                save_to_database(art, target_language) # Auto-save trigger
+                                save_to_database(art, target_language, clean_html) 
                         
-                        if btn_col2.button("👀 Metni Analiz Et", key=f"analyze_{idx}"):
-                            with st.spinner("Siteye erişiliyor ve kaydediliyor..."):
+                        if btn_col2.button(t("btn_analyze"), key=f"analyze_{idx}"):
+                            with st.spinner(t("msg_translating")):
                                 raw_text = extract_article_text(art['link'])
                                 if len(raw_text) > 300:
                                     art['analysis_result'] = process_with_ai(raw_text, "deep_analyze", target_language)
                                 else:
                                     st.warning("⚠️ Could not extract full text. Translating summary instead.")
                                     art['analysis_result'] = process_with_ai(clean_summary, "translate_only", target_language)
-                                save_to_database(art, target_language) # Auto-save trigger
+                                save_to_database(art, target_language, clean_html) 
 
-                        # Display results if they exist in the dictionary
                         if "translation_result" in art:
-                            st.success(f"**Başlık Çevirisi ({target_language}):**\n\n{art['translation_result']}")
+                            st.success(f"**Translated ({target_language}):**\n\n{art['translation_result']}")
                         if "analysis_result" in art:
-                            st.info(f"**Metin Analizi ({target_language}):**\n\n{art['analysis_result']}")
+                            st.info(f"**Analysis ({target_language}):**\n\n{art['analysis_result']}")
 
-                        # --- TRUE RICH-TEXT COPY BUTTON ---
-                        # DESIGN CHOICE: Streamlit's native copy functionality only copies plain text.
-                        # We use a custom st.iframe block injecting HTML/Javascript to force the 
-                        # browser's clipboard to copy this as Rich Text (allowing hyperlinks to remain active).
                         st.write("") 
                         
-                        # Prioritize the most advanced text generation available
                         if "analysis_result" in art:
                             best_text = art["analysis_result"]
                         elif "translation_result" in art:
@@ -239,7 +177,6 @@ if st.session_state.articles:
                         abbr = art['source']
                         formatted_text = best_text.replace('\n', '<br>')
                         
-                        # Build HTML string injected into the JS
                         full_html = f"<strong>{art['title']}</strong><br><br>{formatted_text}<br><br><a href='{art['link']}'>{abbr}</a>"
                         safe_html = full_html.replace("'", "\\'")
                         
@@ -258,9 +195,8 @@ if st.session_state.articles:
                                 font-weight: bold;
                                 transition: background-color 0.2s;
                             ">📋 COPY RENDERED HTML</button>
-                            <p id="msg-{idx}" style="display:none; color:#00cc44; font-size:12px; margin-top:6px; text-align:center; font-family:sans-serif;">✅ Copied as Rich Text!</p>
+                            <p id="msg-{idx}" style="display:none; color:#00cc44; font-size:12px; margin-top:6px; text-align:center; font-family:sans-serif;">✅ Copied!</p>
                         </div>
-                        
                         <script>
                         document.getElementById("copy-btn-{idx}").addEventListener("click", function() {{
                             const htmlContent = '{safe_html}';
@@ -269,15 +205,12 @@ if st.session_state.articles:
                             div.style.position = "absolute";
                             div.style.left = "-9999px";
                             document.body.appendChild(div);
-                            
                             const range = document.createRange();
                             range.selectNodeContents(div);
                             const sel = window.getSelection();
                             sel.removeAllRanges();
                             sel.addRange(range);
-                            
                             document.execCommand("copy");
-                            
                             document.body.removeChild(div);
                             const msg = document.getElementById("msg-{idx}");
                             msg.style.display = "block";
