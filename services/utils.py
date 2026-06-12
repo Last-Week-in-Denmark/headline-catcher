@@ -1,4 +1,5 @@
 import re
+from newspaper import Article
 
 # ==========================================
 # UTILITY FUNCTIONS
@@ -25,3 +26,18 @@ def get_source_abbreviation(name):
     if len(words) == 1:
         return name[:3].upper()
     return "".join([w[0].upper() for w in words])[:4]
+
+def extract_article_text(url):
+    """
+    Uses the Newspaper3k library to scrape the full article body text.
+    
+    Input: url (str)
+    Output: (str) - Full scraped text, or empty string if scraping fails/blocked.
+    """
+    try:
+        article = Article(url)
+        article.download()
+        article.parse()
+        return article.text
+    except Exception:
+        return ""

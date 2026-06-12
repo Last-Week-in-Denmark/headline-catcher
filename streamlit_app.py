@@ -16,6 +16,7 @@ from streamlit_gsheets import GSheetsConnection
 
 from services.databases import save_to_database, batch_save_new_articles
 from services.utils import clean_html, get_source_abbreviation
+from services.rss_engine import fetch_rss_links
 
 # ==========================================
 # ENVIRONMENT & CONFIGURATION
@@ -110,53 +111,6 @@ def get_cached_feed_entries(feed_url):
             "published_parsed": getattr(entry, 'published_parsed', None)
         })
     return entries
-
-def fetch_rss_links(feed_url, source_name, days_back):
-    """
-    Filters cached RSS entries based on the user's date slider.
-    
-    Input: 
-      - feed_url (str)
-      - source_name (str): Name of the source (e.g., TechCrunch).
-      - days_back (int): Dynamic value from the UI slider.
-    Output: list - Filtered articles.
-    """
-    entries = get_cached_feed_entries(feed_url) 
-    articles = []
-    cutoff_date = datetime.now() - timedelta(days=days_back)
-    
-    for entry in entries:
-        dt = None
-        if entry["published_parsed"]:
-            dt = datetime.fromtimestamp(time.mktime(entry["published_parsed"]))
-            
-        # Skip articles older than our dynamic cutoff date
-        if dt and dt < cutoff_date:
-            continue 
-            
-        articles.append({
-            "title": entry["title"],
-            "link": entry["link"],
-            "source": source_name,
-            "published": entry["published"],
-            "rss_summary": entry["summary"]
-        })
-    return articles
-
-def extract_article_text(url):
-    """
-    Uses the Newspaper3k library to scrape the full article body text.
-    
-    Input: url (str)
-    Output: (str) - Full scraped text, or empty string if scraping fails/blocked.
-    """
-    try:
-        article = Article(url)
-        article.download()
-        article.parse()
-        return article.text
-    except Exception:
-        return ""
 
 def process_with_ai(text, task_type, target_lang):
     """
