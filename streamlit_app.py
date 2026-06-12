@@ -1,3 +1,4 @@
+
 import streamlit as st
 import feedparser
 from newspaper import Article
@@ -22,6 +23,13 @@ def clean_html(raw_html):
     cleanr = re.compile('<.*?>')
     cleantext = re.sub(cleanr, '', raw_html)
     return cleantext.strip()
+
+def get_source_abbreviation(name):
+    """Generates a short abbreviation for the news source (e.g., 'BBC World News' -> 'BWN')."""
+    words = [w for w in re.split(r'\W+', name) if w]
+    if len(words) == 1:
+        return name[:3].upper()
+    return "".join([w[0].upper() for w in words])[:4]
 
 # ==========================================
 # 1. TEAM PASSWORD PROTECTION LOGIC
@@ -51,10 +59,8 @@ if not check_password():
 # ==========================================
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Cache the network request for 30 minutes
 @st.cache_data(show_spinner=False, ttl=1800)
 def get_cached_feed_entries(feed_url):
-    """Fetches feed and converts complex objects into simple, cacheable dictionaries."""
     feed = feedparser.parse(feed_url)
     entries = []
     for entry in feed.entries:
@@ -63,18 +69,13 @@ def get_cached_feed_entries(feed_url):
             "link": entry.get("link", ""),
             "published": entry.get("published", "No date provided"),
             "summary": entry.get("summary", "No standard RSS summary available."),
-            # Safely capture the parsed time if it exists
             "published_parsed": getattr(entry, 'published_parsed', None)
         })
     return entries
 
 def fetch_rss_links(feed_url, source_name, days_back):
-    """Processes the feed and filters out articles older than the cutoff date."""
-    # Call our new cache-safe function
     entries = get_cached_feed_entries(feed_url) 
     articles = []
-    
-    # Calculate the cutoff date
     cutoff_date = datetime.now() - timedelta(days=days_back)
     
     for entry in entries:
@@ -83,7 +84,7 @@ def fetch_rss_links(feed_url, source_name, days_back):
             dt = datetime.fromtimestamp(time.mktime(entry["published_parsed"]))
             
         if dt and dt < cutoff_date:
-            continue # Skip old articles
+            continue 
             
         articles.append({
             "title": entry["title"],
@@ -135,7 +136,6 @@ with st.sidebar:
     
     selected_feed_name = st.selectbox("Select News Channel:", options=feed_options)
     
-    # --- NEW SLIDER FOR DATE FILTERING ---
     st.divider()
     st.subheader("Date & Volume Filter")
     days_back = st.slider("Include news from the last X days:", min_value=1, max_value=30, value=7)
@@ -160,18 +160,15 @@ with st.sidebar:
     st.divider()
     st.subheader("Sosyal Medyadan Okuma")
 
-# --- SESSION STATE INITIALIZATION ---
 if "articles" not in st.session_state:
     st.session_state.articles = []
 
-# Main Fetch Button
 if st.button("Fetch News", type="primary"):
     fetched_articles = []
     
     with st.spinner(f"Fetching RSS feeds from the last {days_back} days..."):
         if selected_feed_name == "All Feeds":
             for name, url in config.get("FEEDS", {}).items():
-                # Notice we pass the 'days_back' parameter into our new function
                 fetched_articles.extend(fetch_rss_links(url, name, days_back)[:num_articles])
         else:
             url = config["FEEDS"][selected_feed_name]
@@ -187,10 +184,9 @@ if st.button("Fetch News", type="primary"):
 if st.session_state.articles:
     st.divider()
     
-    # --- NEW: TOTAL COUNTER AT THE TOP ---
     total_articles = len(st.session_state.articles)
     st.markdown(f"### 📰 Total Links Fetched: **{total_articles}**")
-    st.write("") # Adds a tiny bit of breathing room below the counter
+    st.write("") 
     
     for i in range(0, len(st.session_state.articles), 2):
         cols = st.columns(2)
@@ -203,11 +199,10 @@ if st.session_state.articles:
                 with cols[j]:
                     with st.container(border=True):
                         st.caption(f"📢 Source: **{art['source']}**")
+                        st.subheader(art['title'])
                         
-                        # --- CHANGED: Removed the 'idx+1' number from the title ---
-                        st.subheader(art['title']) 
-                        
-                        st.caption(f"📅 {art['published']} | 🔗 [Read Original]({art['link']})")
+                        # Removed the inline link to make way for the big copy button
+                        st.caption(f"📅 {art['published']}")
                         
                         clean_summary = clean_html(art['rss_summary'])
                         snippet_words = clean_summary.split()[:20]
@@ -217,12 +212,12 @@ if st.session_state.articles:
                         
                         btn_col1, btn_col2 = st.columns(2)
                         
-                        if btn_col1.button("🌐 Translate", key=f"trans_{idx}"):
-                            with st.spinner("Translating..."):
+                        if btn_col1.button("🌐 Çevir", key=f"trans_{idx}"):
+                            with st.spinner("Çeviriliyor..."):
                                 art['translation_result'] = process_with_ai(clean_summary, "translate_only", target_language)
                         
-                        if btn_col2.button("🧠 Deep Analyze", key=f"analyze_{idx}"):
-                            with st.spinner("Analyzing site..."):
+                        if btn_col2.button("👀 Metni Analiz Et", key=f"analyze_{idx}"):
+                            with st.spinner("Siteye erişiliyor..."):
                                 raw_text = extract_article_text(art['link'])
                                 if len(raw_text) > 300:
                                     art['analysis_result'] = process_with_ai(raw_text, "deep_analyze", target_language)
@@ -234,4 +229,31 @@ if st.session_state.articles:
                             st.success(f"**Başlık Çevirisi ({target_language}):**\n\n{art['translation_result']}")
                             
                         if "analysis_result" in art:
-                            st.info(f"**Metin Analizi ({target_language}):**\n\n{art['analysis_result']}")
+                            st.info(f"**Metin Analizi () ({target_language}):**\n\n{art['analysis_result']}")
+
+                        # --- NEW: BIG COPY BUTTON LOGIC ---
+                        st.write("") 
+                        if st.button("📋 COPY TO CLIPBOARD", key=f"copy_{idx}", use_container_width=True, type="secondary"):
+                            
+                            # 1. Determine the best available content
+                            if "analysis_result" in art:
+                                best_text = art["analysis_result"]
+                            elif "translation_result" in art:
+                                best_text = art["translation_result"]
+                            else:
+                                best_text = clean_summary
+                            
+                            # 2. Get the abbreviation (e.g., TechCrunch -> TC)
+                            abbr = get_source_abbreviation(art['source'])
+                            
+                            # 3. Format with the markdown hyperlink
+                            final_text = f"{best_text}\n\n([{abbr}]({art['link']}))"
+                            art['copy_ready'] = final_text
+                            
+                        # If the user clicked the copy button, reveal the 1-click copy box
+                        if "copy_ready" in art:
+                            st.markdown("👇 **Click the little clipboard icon in the top-right corner of this box to copy!**")
+                            st.code(art['copy_ready'], language="markdown")
+
+
+
