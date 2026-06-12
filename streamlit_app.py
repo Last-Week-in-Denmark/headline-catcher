@@ -71,10 +71,13 @@ def save_to_database(article_data, target_lang):
     try:
         my_sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet_link"]
         
-        # Read existing data
-        existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1")
+        # FIX 1: Add ttl=0 to bypass the cache and ALWAYS read live data
+        existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1", ttl=0)
         
-        # Determine the processing tier based on what was generated
+        # FIX 2: Prevent KeyError if the sheet is completely blank
+        if 'article_id' not in existing_data.columns:
+            existing_data = pd.DataFrame(columns=['article_id', 'timestamp', 'source', 'title', 'published_date', 'processing_tier', 'target_language', 'raw_rss_snippet', 'translated_text', 'ai_summary'])
+
         processing_tier = "1. Default"
         translated_text = ""
         ai_summary = ""
@@ -86,15 +89,12 @@ def save_to_database(article_data, target_lang):
             processing_tier = "2. Translate RSS"
             translated_text = article_data["translation_result"]
 
-        # UPSERT LOGIC: If it already exists, update the row instead of duplicating
         if article_data['link'] in existing_data['article_id'].values:
             row_idx = existing_data.index[existing_data['article_id'] == article_data['link']].tolist()[0]
             
-            # Update the specific columns
             existing_data.at[row_idx, 'processing_tier'] = processing_tier
             existing_data.at[row_idx, 'target_language'] = target_lang
             
-            # Only overwrite text if we actually generated new text
             if translated_text:
                 existing_data.at[row_idx, 'translated_text'] = translated_text
             if ai_summary:
@@ -104,7 +104,6 @@ def save_to_database(article_data, target_lang):
             return "updated"
             
         else:
-            # It's new, append a new row
             new_row = pd.DataFrame([{
                 "article_id": article_data['link'],
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -123,16 +122,22 @@ def save_to_database(article_data, target_lang):
             return "saved"
             
     except Exception as e:
-        print(f"Background save error: {e}") # Fails silently so it doesn't crash the user UI
+        # FIX 3: Push the error to the UI so we can actually see what went wrong
+        st.error(f"🚨 Save Error: {e}") 
         return "error"
 
 def batch_save_new_articles(articles_list):
     """Checks the database and bulk-saves any articles that aren't already cached."""
     try:
         my_sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet_link"]
-        existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1", usecols=list(range(10)))
         
-        # Create a set of existing URLs for lightning-fast duplicate checking
+        # FIX 1: ttl=0 to bypass cache
+        existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1", usecols=list(range(10)), ttl=0)
+        
+        # FIX 2: Prevent KeyError on blank sheets
+        if 'article_id' not in existing_data.columns:
+             existing_data['article_id'] = ""
+             
         existing_urls = set(existing_data['article_id'].dropna().values)
         
         new_rows = []
@@ -151,14 +156,14 @@ def batch_save_new_articles(articles_list):
                     "ai_summary": ""
                 })
         
-        # Only ping Google Sheets if we actually have new news to add
         if new_rows:
             new_df = pd.DataFrame(new_rows)
             updated_df = pd.concat([existing_data, new_df], ignore_index=True)
             conn.update(spreadsheet=my_sheet_url, worksheet="Sheet1", data=updated_df)
             
     except Exception as e:
-        print(f"Batch save error: {e}") # Fails silently for the user
+        # FIX 3: Push the error to the UI
+        st.error(f"🚨 Batch Cache Error: {e}")
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def get_cached_feed_entries(feed_url):
