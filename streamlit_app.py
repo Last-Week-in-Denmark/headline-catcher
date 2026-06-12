@@ -90,6 +90,21 @@ with st.sidebar:
     st.divider()
     gsheet_url = st.secrets.get("connections", {}).get("gsheets", {}).get("spreadsheet_link", 'Not configured') 
     st.write(f"Current Google Sheets URL: {gsheet_url}")
+    st.divider()
+    st.subheader("Eklenecek Özellikler (Gelecekte):")
+    st.divider()
+    st.subheader("İlave Feed Ekleme")
+    st.divider()
+    st.subheader("ST'ye alternatif frontend lokal deployment icin")
+    st.divider()
+    st.subheader("Haber Masasında Eklenecek Özellikler")
+    st.divider()
+    st.subheader("Word'e Aktarma")
+    st.divider()
+    st.subheader("Kategori İşaretleme")
+    st.divider()
+    st.subheader("Sosyal Medyadan Okuma")
+    st.divider()
 
 if "articles" not in st.session_state:
     st.session_state.articles = []
