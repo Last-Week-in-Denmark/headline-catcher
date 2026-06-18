@@ -109,3 +109,60 @@ def batch_save_new_articles(articles_list, clean_html_func):
             
     except Exception as e:
         st.error(f"🚨 Batch Save Error: {e}")
+
+def load_cached_articles(source_name, days_back):
+    """Loads already cached articles from Google Sheets for the given source and days back."""
+    try:
+        my_sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet_link"]
+        
+        # Read the live sheet
+        existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1", ttl=0)
+        
+        # Force pandas to treat all blanks as text, not float64
+        existing_data = existing_data.fillna("").astype(str)
+        
+        if 'article_id' not in existing_data.columns:
+            return []
+            
+        cutoff_date = datetime.now() - timedelta(days=days_back)
+        cached_articles = []
+        
+        for _, row in existing_data.iterrows():
+            row_source = row.get("source", "")
+            if source_name != "All Feeds" and row_source != source_name:
+                continue
+                
+            timestamp_str = row.get("timestamp", "")
+            try:
+                dt = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                continue
+                
+            if dt < cutoff_date:
+                continue
+                
+            # Reconstruct article dict
+            art = {
+                "link": row.get("article_id", ""),
+                "source": row_source,
+                "title": row.get("title", ""),
+                "published": row.get("published_date", ""),
+                "rss_summary": row.get("raw_rss_snippet", ""),
+                "timestamp_dt": dt
+            }
+            
+            # Load translation and analysis results if they exist
+            translated_text = row.get("translated_text", "")
+            ai_summary = row.get("ai_summary", "")
+            
+            if translated_text:
+                art["translation_result"] = translated_text
+            if ai_summary:
+                art["analysis_result"] = ai_summary
+                
+            cached_articles.append(art)
+            
+        return cached_articles
+    except Exception as e:
+        st.error(f"🚨 Load Cache Error: {e}")
+        return []

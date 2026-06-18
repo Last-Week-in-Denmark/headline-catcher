@@ -4,7 +4,7 @@ import json
 import traceback
 
 # Internal Imports
-from services.databases import save_to_database, batch_save_new_articles
+from services.databases import save_to_database, batch_save_new_articles, load_cached_articles
 from services.utils import clean_html, get_source_abbreviation, extract_article_text
 from services.rss_engine import fetch_rss_links
 from services.llms import process_with_ai
@@ -123,30 +123,69 @@ if "articles" not in st.session_state:
 if st.button(t("btn_fetch"), type="primary"):
     fetched_articles = []
     
+    with st.spinner("Loading cached articles from database..."):
+        # 1. Load already cached articles from Google Sheets
+        cached_articles = load_cached_articles(selected_feed_name, days_back)
+        
     with st.spinner(t("msg_translating")):
+        # 2. Now fetch live RSS feeds
+        rss_articles = []
         if selected_feed_name == "All Feeds":
             for name, url in config.get("FEEDS", {}).items():
                 feed_articles = fetch_rss_links(url, name, days_back)
                 if num_articles == "ALL":
-                    fetched_articles.extend(feed_articles)
+                    rss_articles.extend(feed_articles)
                 else:
-                    fetched_articles.extend(feed_articles[:num_articles])
+                    rss_articles.extend(feed_articles[:num_articles])
         else:
             url = config["FEEDS"][selected_feed_name]
             feed_articles = fetch_rss_links(url, selected_feed_name, days_back)
             if num_articles == "ALL":
-                fetched_articles = feed_articles
+                rss_articles = feed_articles
             else:
-                fetched_articles = feed_articles[:num_articles]
+                rss_articles = feed_articles[:num_articles]
+                
+        # 3. Merge: Start with cached articles (which have results)
+        merged_articles = list(cached_articles)
+        merged_links = {art['link'] for art in merged_articles}
+        
+        # Add new articles from RSS that aren't in the cache yet
+        new_rss_articles = []
+        for art in rss_articles:
+            if art['link'] not in merged_links:
+                # Assign a timestamp datetime of now for correct sorting
+                from datetime import datetime
+                art["timestamp_dt"] = datetime.now()
+                merged_articles.append(art)
+                merged_links.add(art['link'])
+                new_rss_articles.append(art)
+                
+        # 4. Sort all merged articles by timestamp descending so newest are first
+        from datetime import datetime
+        merged_articles.sort(key=lambda x: x.get("timestamp_dt", datetime.min), reverse=True)
+        
+        # 5. Respect the num_articles limit per source if it is not "ALL"
+        if num_articles != "ALL":
+            source_counts = {}
+            filtered_merged = []
+            for art in merged_articles:
+                src = art['source']
+                count = source_counts.get(src, 0)
+                if count < num_articles:
+                    filtered_merged.append(art)
+                    source_counts[src] = count + 1
+            merged_articles = filtered_merged
+            
+        fetched_articles = merged_articles
         
     if not fetched_articles:
         st.warning(f"Could not find any articles from the last {days_back} days.")
     else:
         st.session_state.articles = fetched_articles
         
-        with st.spinner("Caching new articles to database..."):
-            # Notice we pass clean_html into the function so the DB file can use it!
-            batch_save_new_articles(fetched_articles, clean_html)
+        if new_rss_articles:
+            with st.spinner("Caching new articles to database..."):
+                batch_save_new_articles(new_rss_articles, clean_html)
 
 # --- GRID DISPLAY LOGIC ---
 if st.session_state.articles:
