@@ -82,7 +82,11 @@ with st.sidebar:
     st.divider()
     st.subheader("Date & Volume Filter")
     days_back = st.slider("Include news from the last X days:", min_value=1, max_value=30, value=7)
-    num_articles = st.slider("Max articles to fetch per channel:", 1, 10, 3)
+    num_articles = st.select_slider(
+        "Max articles to fetch per channel:",
+        options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, "ALL"],
+        value=3
+    )
     
     st.divider()
     target_language = st.selectbox("Translate to:", ["Turkish", "Danish", "English"])
@@ -122,10 +126,18 @@ if st.button(t("btn_fetch"), type="primary"):
     with st.spinner(t("msg_translating")):
         if selected_feed_name == "All Feeds":
             for name, url in config.get("FEEDS", {}).items():
-                fetched_articles.extend(fetch_rss_links(url, name, days_back)[:num_articles])
+                feed_articles = fetch_rss_links(url, name, days_back)
+                if num_articles == "ALL":
+                    fetched_articles.extend(feed_articles)
+                else:
+                    fetched_articles.extend(feed_articles[:num_articles])
         else:
             url = config["FEEDS"][selected_feed_name]
-            fetched_articles = fetch_rss_links(url, selected_feed_name, days_back)[:num_articles]
+            feed_articles = fetch_rss_links(url, selected_feed_name, days_back)
+            if num_articles == "ALL":
+                fetched_articles = feed_articles
+            else:
+                fetched_articles = feed_articles[:num_articles]
         
     if not fetched_articles:
         st.warning(f"Could not find any articles from the last {days_back} days.")
