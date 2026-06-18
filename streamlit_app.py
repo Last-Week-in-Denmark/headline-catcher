@@ -65,55 +65,55 @@ st.title(t("app_title"))
 lang_options = {"English": "en", "Türkçe": "tr", "Dansk": "da"}
 
 selected_display_lang = st.sidebar.selectbox(
-    "🌍 App Language:", 
+    t("lbl_app_lang"), 
     options=list(lang_options.keys()),
     index=list(lang_options.values()).index(st.session_state.app_lang)
 )
 st.session_state.app_lang = lang_options[selected_display_lang]
 
 with st.sidebar:
-    st.header("⚙️ Settings")
+    st.header(t("lbl_settings"))
     
     feed_options = list(config.get("FEEDS", {}).keys())
     feed_options.insert(0, "All Feeds") 
     
-    selected_feed_name = st.selectbox("Select News Channel:", options=feed_options)
+    selected_feed_name = st.selectbox(t("lbl_select_channel"), options=feed_options)
     
     st.divider()
-    st.subheader("Date & Volume Filter")
-    days_back = st.slider("Include news from the last X days:", min_value=1, max_value=30, value=7)
+    st.subheader(t("lbl_date_volume_filter"))
+    days_back = st.slider(t("lbl_days_back"), min_value=1, max_value=30, value=7)
     num_articles = st.select_slider(
-        "Max articles to fetch per channel:",
+        t("lbl_max_articles"),
         options=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, "ALL"],
         value=3
     )
     
     st.divider()
-    target_language = st.selectbox("Translate to:", ["Turkish", "Danish", "English"])
-
+    target_language = st.selectbox(t("lbl_translate_to"), ["Turkish", "Danish", "English"])
+    
     st.divider()
     gsheet_url = st.secrets.get("connections", {}).get("gsheets", {}).get("spreadsheet_link", 'Not configured') 
-    st.write(f"Current Google Sheets URL: {gsheet_url}")
+    st.write(f"{t('lbl_gsheet_url')} {gsheet_url}")
     st.divider()
-    st.subheader("Eklenecek Özellikler (Gelecekte):")
+    st.subheader(t("lbl_future_features"))
     st.divider()
-    st.subheader("AI kalan krediyi goster")
+    st.subheader(t("lbl_ai_credits"))
     st.divider()
-    st.subheader("Cacheten okuyarak zaman kazandırma")
+    st.subheader(t("lbl_cache_speedup"))
     st.divider()
-    st.subheader("Eksik çevirileri tamamlama!")
+    st.subheader(t("lbl_fill_missing_translations"))
     st.divider()
-    st.subheader("İlave Feed Ekleme")
+    st.subheader(t("lbl_add_more_feeds"))
     st.divider()
-    st.subheader("ST'ye alternatif frontend lokal deployment icin")
+    st.subheader(t("lbl_alt_frontend"))
     st.divider()
-    st.subheader("Haber Masasında Eklenecek Özellikler")
+    st.subheader(t("lbl_newsroom_features"))
     st.divider()
-    st.subheader("Word'e Aktarma")
+    st.subheader(t("lbl_export_word"))
     st.divider()
-    st.subheader("Kategori İşaretleme")
+    st.subheader(t("lbl_tag_categories"))
     st.divider()
-    st.subheader("Sosyal Medyadan Okuma")
+    st.subheader(t("lbl_read_social_media"))
     st.divider()
 
 if "articles" not in st.session_state:
@@ -123,7 +123,7 @@ if "articles" not in st.session_state:
 if st.button(t("btn_fetch"), type="primary"):
     fetched_articles = []
     
-    with st.spinner("Loading cached articles from database..."):
+    with st.spinner(t("msg_loading_cached")):
         # 1. Load already cached articles from Google Sheets
         cached_articles = load_cached_articles(selected_feed_name, days_back)
         
@@ -179,12 +179,12 @@ if st.button(t("btn_fetch"), type="primary"):
         fetched_articles = merged_articles
         
     if not fetched_articles:
-        st.warning(f"Could not find any articles from the last {days_back} days.")
+        st.warning(t("msg_no_articles").format(days_back=days_back))
     else:
         st.session_state.articles = fetched_articles
         
         if new_rss_articles:
-            with st.spinner("Caching new articles to database..."):
+            with st.spinner(t("msg_caching_new")):
                 batch_save_new_articles(new_rss_articles, clean_html)
 
 # --- GRID DISPLAY LOGIC ---
@@ -192,7 +192,7 @@ if st.session_state.articles:
     st.divider()
     
     total_articles = len(st.session_state.articles)
-    st.markdown(f"### 📰 Total Links Fetched: **{total_articles}**")
+    st.markdown(f"### {t('lbl_total_links')} **{total_articles}**")
     st.write("") 
     
     for i in range(0, len(st.session_state.articles), 2):
@@ -205,7 +205,7 @@ if st.session_state.articles:
                 
                 with cols[j]:
                     with st.container(border=True):
-                        st.caption(f"📢 Source: **{art['source']}**")
+                        st.caption(f"{t('lbl_source')} **{art['source']}**")
                         st.subheader(art['title'])
                         st.caption(f"📅 {art['published']}")
                         
@@ -228,15 +228,15 @@ if st.session_state.articles:
                                 if len(raw_text) > 300:
                                     art['analysis_result'] = process_with_ai(raw_text, "deep_analyze", target_language)
                                 else:
-                                    st.warning("⚠️ Could not extract full text. Translating summary instead.")
+                                    st.warning(t("msg_no_full_text"))
                                     art['analysis_result'] = process_with_ai(clean_summary, "translate_only", target_language)
                                 save_to_database(art, target_language, clean_html) 
-
+ 
                         if "translation_result" in art:
-                            st.success(f"**Translated ({target_language}):**\n\n{art['translation_result']}")
+                            st.success(f"**{t('lbl_translated_result')} ({target_language}):**\n\n{art['translation_result']}")
                         if "analysis_result" in art:
-                            st.info(f"**Analysis ({target_language}):**\n\n{art['analysis_result']}")
-
+                            st.info(f"**{t('lbl_analysis_result')} ({target_language}):**\n\n{art['analysis_result']}")
+ 
                         st.write("") 
                         
                         if "analysis_result" in art:
@@ -266,8 +266,8 @@ if st.session_state.articles:
                                 font-size: 14px;
                                 font-weight: bold;
                                 transition: background-color 0.2s;
-                            ">📋 COPY RENDERED HTML</button>
-                            <p id="msg-{idx}" style="display:none; color:#00cc44; font-size:12px; margin-top:6px; text-align:center; font-family:sans-serif;">✅ Copied!</p>
+                            ">{t('btn_copy_html')}</button>
+                            <p id="msg-{idx}" style="display:none; color:#00cc44; font-size:12px; margin-top:6px; text-align:center; font-family:sans-serif;">{t('lbl_copied')}</p>
                         </div>
                         <script>
                         document.getElementById("copy-btn-{idx}").addEventListener("click", function() {{
