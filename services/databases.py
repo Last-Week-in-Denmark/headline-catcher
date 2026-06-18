@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from streamlit_gsheets import GSheetsConnection
 
 # 1. Initialize the connection right here inside the module!
