@@ -23,7 +23,6 @@ with open(config_file, "r") as f:
 if "app_lang" not in st.session_state:
     st.session_state.app_lang = "tr"
 
-@st.cache_data
 def load_translations(lang_code):
     with open(f"locales/{lang_code}.json", "r", encoding="utf-8") as f:
         return json.load(f)
