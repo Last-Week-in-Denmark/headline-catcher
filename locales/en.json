@@ -32,5 +32,10 @@
   "msg_loading_cached": "Loading cached articles from database...",
   "msg_no_articles": "Could not find any articles from the last {days_back} days.",
   "msg_caching_new": "Caching new articles to database...",
-  "msg_no_full_text": "⚠️ Could not extract full text. Translating summary instead."
+  "msg_no_full_text": "⚠️ Could not extract full text. Translating summary instead.",
+  "lbl_budget_remaining": "Estimated Budget Remaining",
+  "lbl_spent": "spent",
+  "lbl_prompt_tokens": "Prompt Tokens",
+  "lbl_completion_tokens": "Completion Tokens",
+  "lbl_total_tokens": "Total Tokens"
 }

@@ -20,7 +20,11 @@ def save_to_database(article_data, target_lang, clean_html_func):
         existing_data = existing_data.fillna("").astype(str)
         
         if 'article_id' not in existing_data.columns:
-            existing_data = pd.DataFrame(columns=['article_id', 'timestamp', 'source', 'title', 'published_date', 'processing_tier', 'target_language', 'raw_rss_snippet', 'translated_text', 'ai_summary'])
+            existing_data = pd.DataFrame(columns=['article_id', 'timestamp', 'source', 'title', 'published_date', 'processing_tier', 'target_language', 'raw_rss_snippet', 'translated_text', 'ai_summary', 'prompt_tokens', 'completion_tokens'])
+
+        for col in ['prompt_tokens', 'completion_tokens']:
+            if col not in existing_data.columns:
+                existing_data[col] = "0"
 
         processing_tier = "1. Default"
         translated_text = ""
@@ -33,6 +37,9 @@ def save_to_database(article_data, target_lang, clean_html_func):
             processing_tier = "2. Translate RSS"
             translated_text = article_data["translation_result"]
 
+        prompt_tokens = str(article_data.get('prompt_tokens', 0))
+        completion_tokens = str(article_data.get('completion_tokens', 0))
+
         if article_data['link'] in existing_data['article_id'].values:
             row_idx = existing_data.index[existing_data['article_id'] == article_data['link']].tolist()[0]
             existing_data.at[row_idx, 'processing_tier'] = processing_tier
@@ -41,6 +48,12 @@ def save_to_database(article_data, target_lang, clean_html_func):
             if translated_text: existing_data.at[row_idx, 'translated_text'] = translated_text
             if ai_summary: existing_data.at[row_idx, 'ai_summary'] = ai_summary
                 
+            prev_prompt = int(float(existing_data.at[row_idx, 'prompt_tokens'])) if existing_data.at[row_idx, 'prompt_tokens'] else 0
+            prev_comp = int(float(existing_data.at[row_idx, 'completion_tokens'])) if existing_data.at[row_idx, 'completion_tokens'] else 0
+            
+            existing_data.at[row_idx, 'prompt_tokens'] = str(prev_prompt + int(prompt_tokens))
+            existing_data.at[row_idx, 'completion_tokens'] = str(prev_comp + int(completion_tokens))
+            
             conn.update(spreadsheet=my_sheet_url, worksheet="Sheet1", data=existing_data)
             return "updated"
         else:
@@ -55,7 +68,9 @@ def save_to_database(article_data, target_lang, clean_html_func):
                 # Note: We pass the clean_html function in as an argument so we don't have circular imports
                 "raw_rss_snippet": clean_html_func(article_data['rss_summary']),
                 "translated_text": translated_text,
-                "ai_summary": ai_summary
+                "ai_summary": ai_summary,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens
             }])
             
             updated_df = pd.concat([existing_data, new_row], ignore_index=True)
@@ -85,6 +100,10 @@ def batch_save_new_articles(articles_list, clean_html_func):
         if 'article_id' not in existing_data.columns:
              existing_data['article_id'] = ""
              
+        for col in ['prompt_tokens', 'completion_tokens']:
+            if col not in existing_data.columns:
+                existing_data[col] = "0"
+                
         existing_urls = set(existing_data['article_id'].dropna().values)
         new_rows = []
         for art in articles_list:
@@ -99,7 +118,9 @@ def batch_save_new_articles(articles_list, clean_html_func):
                     "target_language": "Original",
                     "raw_rss_snippet": clean_html_func(art['rss_summary']),
                     "translated_text": "",
-                    "ai_summary": ""
+                    "ai_summary": "",
+                    "prompt_tokens": "0",
+                    "completion_tokens": "0"
                 })
         
         if new_rows:
@@ -148,7 +169,9 @@ def load_cached_articles(source_name, days_back):
                 "title": row.get("title", ""),
                 "published": row.get("published_date", ""),
                 "rss_summary": row.get("raw_rss_snippet", ""),
-                "timestamp_dt": dt
+                "timestamp_dt": dt,
+                "prompt_tokens": int(float(row.get("prompt_tokens", 0))) if row.get("prompt_tokens") and row.get("prompt_tokens") != "" else 0,
+                "completion_tokens": int(float(row.get("completion_tokens", 0))) if row.get("completion_tokens") and row.get("completion_tokens") != "" else 0
             }
             
             # Load translation and analysis results if they exist
@@ -166,3 +189,39 @@ def load_cached_articles(source_name, days_back):
     except Exception as e:
         st.error(f"🚨 Load Cache Error: {e}")
         return []
+
+def get_total_ai_usage():
+    """Calculates the total AI token usage and USD cost from the database."""
+    try:
+        my_sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet_link"]
+        existing_data = conn.read(spreadsheet=my_sheet_url, worksheet="Sheet1", ttl=0)
+        existing_data = existing_data.fillna("0")
+        
+        prompt_tokens = 0
+        completion_tokens = 0
+        
+        if 'prompt_tokens' in existing_data.columns:
+            prompt_tokens = pd.to_numeric(existing_data['prompt_tokens'], errors='coerce').fillna(0).sum()
+            
+        if 'completion_tokens' in existing_data.columns:
+            completion_tokens = pd.to_numeric(existing_data['completion_tokens'], errors='coerce').fillna(0).sum()
+            
+        # Cost calculation for gpt-4o-mini:
+        # Input: $0.15 / 1M tokens ($0.00000015 / token)
+        # Output: $0.60 / 1M tokens ($0.00000060 / token)
+        cost_usd = (prompt_tokens * 0.00000015) + (completion_tokens * 0.00000060)
+        
+        return {
+            "prompt_tokens": int(prompt_tokens),
+            "completion_tokens": int(completion_tokens),
+            "total_tokens": int(prompt_tokens + completion_tokens),
+            "cost_usd": cost_usd
+        }
+    except Exception as e:
+        st.error(f"🚨 Error calculating AI usage: {e}")
+        return {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "cost_usd": 0.0
+        }
