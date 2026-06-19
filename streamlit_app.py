@@ -96,7 +96,7 @@ with st.sidebar:
     st.divider()
     st.subheader("🤖 AI Credits & Usage")
     usage = get_total_ai_usage()
-    budget = 10.00  # $10.00 default budget
+    budget = 5.00  # $5.00 default budget
     remaining = max(0.0, budget - usage["cost_usd"])
     st.metric(
         label=t("lbl_budget_remaining"), 
