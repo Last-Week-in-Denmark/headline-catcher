@@ -4,7 +4,7 @@ import json
 import traceback
 
 # Internal Imports
-from services.databases import save_to_database, batch_save_new_articles, load_cached_articles
+from services.databases import save_to_database, batch_save_new_articles, load_cached_articles, get_total_ai_usage
 from services.utils import clean_html, get_source_abbreviation, extract_article_text
 from services.rss_engine import fetch_rss_links
 from services.llms import process_with_ai
@@ -94,9 +94,21 @@ with st.sidebar:
     gsheet_url = st.secrets.get("connections", {}).get("gsheets", {}).get("spreadsheet_link", 'Not configured') 
     st.write(f"{t('lbl_gsheet_url')} {gsheet_url}")
     st.divider()
-    st.subheader(t("lbl_future_features"))
+    st.subheader("🤖 AI Credits & Usage")
+    usage = get_total_ai_usage()
+    budget = 10.00  # $10.00 default budget
+    remaining = max(0.0, budget - usage["cost_usd"])
+    st.metric(
+        label=t("lbl_budget_remaining"), 
+        value=f"${remaining:.4f}", 
+        delta=f"-${usage['cost_usd']:.4f} {t('lbl_spent')}"
+    )
+    st.caption(f"{t('lbl_prompt_tokens')}: {usage['prompt_tokens']:,}")
+    st.caption(f"{t('lbl_completion_tokens')}: {usage['completion_tokens']:,}")
+    st.caption(f"{t('lbl_total_tokens')}: {usage['total_tokens']:,}")
+    
     st.divider()
-    st.subheader(t("lbl_ai_credits"))
+    st.subheader(t("lbl_future_features"))
     st.divider()
     st.subheader(t("lbl_fill_missing_translations"))
     st.divider()
@@ -216,18 +228,27 @@ if st.session_state.articles:
                         # Use localization for the buttons
                         if btn_col1.button(t("btn_translate"), key=f"trans_{idx}"):
                             with st.spinner(t("msg_translating")):
-                                art['translation_result'] = process_with_ai(clean_summary, "translate_only", target_language)
+                                ai_res = process_with_ai(clean_summary, "translate_only", target_language)
+                                art['translation_result'] = ai_res.get("content", "")
+                                art['prompt_tokens'] = ai_res.get("prompt_tokens", 0)
+                                art['completion_tokens'] = ai_res.get("completion_tokens", 0)
                                 save_to_database(art, target_language, clean_html) 
+                                st.rerun()
                         
                         if btn_col2.button(t("btn_analyze"), key=f"analyze_{idx}"):
                             with st.spinner(t("msg_translating")):
                                 raw_text = extract_article_text(art['link'])
                                 if len(raw_text) > 300:
-                                    art['analysis_result'] = process_with_ai(raw_text, "deep_analyze", target_language)
+                                    ai_res = process_with_ai(raw_text, "deep_analyze", target_language)
                                 else:
                                     st.warning(t("msg_no_full_text"))
-                                    art['analysis_result'] = process_with_ai(clean_summary, "translate_only", target_language)
+                                    ai_res = process_with_ai(clean_summary, "translate_only", target_language)
+                                
+                                art['analysis_result'] = ai_res.get("content", "")
+                                art['prompt_tokens'] = ai_res.get("prompt_tokens", 0)
+                                art['completion_tokens'] = ai_res.get("completion_tokens", 0)
                                 save_to_database(art, target_language, clean_html) 
+                                st.rerun()
  
                         if "translation_result" in art:
                             st.success(f"**{t('lbl_translated_result')} ({target_language}):**\n\n{art['translation_result']}")

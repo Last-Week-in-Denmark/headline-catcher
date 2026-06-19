@@ -32,5 +32,10 @@
   "msg_loading_cached": "Indlæser cachede artikler fra databasen...",
   "msg_no_articles": "Kunne ikke finde nogen artikler fra de seneste {days_back} dage.",
   "msg_caching_new": "Gemmer nye artikler i databasen...",
-  "msg_no_full_text": "⚠️ Kunne ikke hente den fulde tekst. Oversætter resuméet i stedet."
+  "msg_no_full_text": "⚠️ Kunne ikke hente den fulde tekst. Oversætter resuméet i stedet.",
+  "lbl_budget_remaining": "Estimeret resterende budget",
+  "lbl_spent": "brugt",
+  "lbl_prompt_tokens": "Prompt Tokens",
+  "lbl_completion_tokens": "Completion Tokens",
+  "lbl_total_tokens": "Total Tokens"
 }

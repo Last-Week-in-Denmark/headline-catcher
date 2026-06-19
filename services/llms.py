@@ -54,6 +54,14 @@ def process_with_ai(text, task_type, target_lang):
             ],
             temperature=0.3
         )
-        return response.choices[0].message.content
+        return {
+            "content": response.choices[0].message.content,
+            "prompt_tokens": response.usage.prompt_tokens,
+            "completion_tokens": response.usage.completion_tokens
+        }
     except Exception as e:
-        return f"**AI Error:** {e}"
+        return {
+            "content": f"**AI Error:** {e}",
+            "prompt_tokens": 0,
+            "completion_tokens": 0
+        }

@@ -31,5 +31,10 @@
   "msg_loading_cached": "Veritabanından önbelleğe alınmış haberler yükleniyor...",
   "msg_no_articles": "Son {days_back} güne ait hiçbir haber bulunamadı.",
   "msg_caching_new": "Yeni haberler veritabanına kaydediliyor...",
-  "msg_no_full_text": "⚠️ Tüm metin çekilemedi. Bunun yerine özet çevriliyor."
+  "msg_no_full_text": "⚠️ Tüm metin çekilemedi. Bunun yerine özet çevriliyor.",
+  "lbl_budget_remaining": "Tahmini Kalan Bütçe",
+  "lbl_spent": "harcandı",
+  "lbl_prompt_tokens": "Giriş (Prompt) Tokenları",
+  "lbl_completion_tokens": "Çıkış (Completion) Tokenları",
+  "lbl_total_tokens": "Toplam Token"
 }
