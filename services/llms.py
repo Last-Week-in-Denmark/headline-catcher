@@ -1,10 +1,17 @@
-
-from xmlrpc import client
 import streamlit as st
 from openai import OpenAI
 
-# Initialize the client HERE, so this file owns it
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# Lazily initialized OpenAI client to prevent import-time crashes
+_openai_client = None
+
+def get_openai_client():
+    global _openai_client
+    if _openai_client is None:
+        api_key = st.secrets.get("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY is not set in Streamlit secrets.")
+        _openai_client = OpenAI(api_key=api_key)
+    return _openai_client
 
 def process_with_ai(text, task_type, target_lang):
     if task_type == "translate_only":
@@ -38,6 +45,7 @@ def process_with_ai(text, task_type, target_lang):
         """
 
     try:
+        client = get_openai_client()
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
