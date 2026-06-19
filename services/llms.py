@@ -15,7 +15,7 @@ def process_with_ai(text, task_type, target_lang):
         Özetleme, sadece çevir.
         Başa uyumlu bir emoji koy, başlığı ekle ve sonra metni çevir.
         Örnek:
-        (Emoji) :soccer: (Başlık) Danimarka futbolunun yıldızı Christian Eriksen, Ukrayna maçında bir kez daha sahada fenalaşarak yere yığıldı. (Metin) Maç iptal edilirken, Danimarka Futbol Federasyonu oyuncunun bilincinin açık olduğunu duyurdu.
+        [Emoji Buraya] :soccer: [Başlık Buraya] Danimarka futbolunun yıldızı Christian Eriksen, Ukrayna maçında bir kez daha sahada fenalaşarak yere yığıldı. [Metin Buraya] Maç iptal edilirken, Danimarka Futbol Federasyonu oyuncunun bilincinin açık olduğunu duyurdu.
 
         Eğer kullanılan herhangi bir terim Danimarka'da 1 seneden az süredir yaşayan birinin anlayamayacağı türden ise, o terimi de açıklayarak çevir.
         Örnek:
@@ -29,9 +29,9 @@ def process_with_ai(text, task_type, target_lang):
         Danimarka'da yaşayan bir T.C. vatandaşının perspektifinden bu konuyu değerlendir.
         Bundan sonra {target_lang} dilinde bir analiz hazırla.
         Başa uyumlu bir emoji koy, çarpıcı ve anlaşılır bir başlık ekle ve sonra alakadar eden detayları çevir.
-        Başlıktan sonra en fazla 3 cümle yaz.
+        Başlıktan sonra en fazla 3 cümle yaz. Yani toplam 4 cümle olacak. 1 başlık + 3 cümle.
         Örnek:
-        (Emoji) :soccer: (Başlık) Danimarka futbolunun yıldızı Christian Eriksen, Ukrayna maçında bir kez daha sahada fenalaşarak yere yığıldı. (Metin) Maç iptal edilirken, Danimarka Futbol Federasyonu oyuncunun bilincinin açık olduğunu duyurdu.
+        [Emoji Buraya] :soccer: [Başlık Buraya] Danimarka futbolunun yıldızı Christian Eriksen, Ukrayna maçında bir kez daha sahada fenalaşarak yere yığıldı. [Metin Buraya] Maç iptal edilirken, Danimarka Futbol Federasyonu oyuncunun bilincinin açık olduğunu duyurdu.
         Eğer kullanılan herhangi bir terim Danimarka'da 1 seneden az süredir yaşayan birinin anlayamayacağı türden ise, o terimi de açıklayarak çevir.
         Örnek:
         > Studenterkørsel: Öğrenci aracı. Liseli öğrencilerin mezun oldukları zaman bu araçları kiralayarak kutlamalar yaparlar.
