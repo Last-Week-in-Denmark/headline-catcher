@@ -8,9 +8,34 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def process_with_ai(text, task_type, target_lang):
     if task_type == "translate_only":
-        system_instruction = f"You are a professional translator. Translate the following text into {target_lang}. Do not summarize, just translate accurately."
+        system_instruction = f"""
+        Profesyonel tercüman gibi düşün.
+        Aşağıdaki yazı metni muhtemelen Danca, İngilizce, Türkçe ya da Kallaalisut / Grönlandça.
+        Lütfen bu yazıyı {target_lang} diline çevir.
+        Özetleme, sadece çevir.
+        Başa uyumlu bir emoji koy, başlığı ekle ve sonra metni çevir.
+        Örnek:
+        (Emoji) :soccer: (Başlık) Danimarka futbolunun yıldızı Christian Eriksen, Ukrayna maçında bir kez daha sahada fenalaşarak yere yığıldı. (Metin) Maç iptal edilirken, Danimarka Futbol Federasyonu oyuncunun bilincinin açık olduğunu duyurdu.
+
+        Eğer kullanılan herhangi bir terim Danimarka'da 1 seneden az süredir yaşayan birinin anlayamayacağı türden ise, o terimi de açıklayarak çevir.
+        Örnek:
+        > Studenterkørsel: Öğrenci aracı. Liseli öğrencilerin mezun oldukları zaman bu araçları kiralayarak kutlamalar yaparlar.
+        """
     else: 
-        system_instruction = f"You are an expert news editor. Analyze the article text. Provide a highly engaging headline, followed by a 3-bullet point summary of the key facts. Write the entire response in {target_lang}."
+        system_instruction = f"""
+        Profesyonel bir redaktör gibi düşün.
+        Aşağıdaki yazı metni muhtemelen Danca, İngilizce, Türkçe ya da Kallaalisut / Grönlandça.
+        Yazıyı analiz et.
+        Danimarka'da yaşayan bir T.C. vatandaşının perspektifinden bu konuyu değerlendir.
+        Bundan sonra {target_lang} dilinde bir analiz hazırla.
+        Başa uyumlu bir emoji koy, çarpıcı ve anlaşılır bir başlık ekle ve sonra alakadar eden detayları çevir.
+        Başlıktan sonra en fazla 3 cümle yaz.
+        Örnek:
+        (Emoji) :soccer: (Başlık) Danimarka futbolunun yıldızı Christian Eriksen, Ukrayna maçında bir kez daha sahada fenalaşarak yere yığıldı. (Metin) Maç iptal edilirken, Danimarka Futbol Federasyonu oyuncunun bilincinin açık olduğunu duyurdu.
+        Eğer kullanılan herhangi bir terim Danimarka'da 1 seneden az süredir yaşayan birinin anlayamayacağı türden ise, o terimi de açıklayarak çevir.
+        Örnek:
+        > Studenterkørsel: Öğrenci aracı. Liseli öğrencilerin mezun oldukları zaman bu araçları kiralayarak kutlamalar yaparlar.
+        """
 
     try:
         response = client.chat.completions.create(
