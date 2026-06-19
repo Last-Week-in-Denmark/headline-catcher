@@ -98,8 +98,6 @@ with st.sidebar:
     st.divider()
     st.subheader(t("lbl_ai_credits"))
     st.divider()
-    st.subheader(t("lbl_cache_speedup"))
-    st.divider()
     st.subheader(t("lbl_fill_missing_translations"))
     st.divider()
     st.subheader(t("lbl_add_more_feeds"))

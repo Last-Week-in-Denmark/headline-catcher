@@ -15,7 +15,6 @@
   "lbl_gsheet_url": "Mevcut Google Sheets Adresi:",
   "lbl_future_features": "Eklenecek Özellikler (Gelecekte):",
   "lbl_ai_credits": "AI kalan krediyi göster",
-  "lbl_cache_speedup": "Cache'ten okuyarak zaman kazandırma",
   "lbl_fill_missing_translations": "Eksik çevirileri tamamlama!",
   "lbl_add_more_feeds": "İlave Feed Ekleme",
   "lbl_alt_frontend": "ST'ye alternatif frontend lokal deployment için",
